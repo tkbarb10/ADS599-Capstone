@@ -3,13 +3,13 @@ https://psnet.ahrq.gov/primer/failure-rescue
 
 - Defines failure to rescue (FTR) patients as being caused by a failure to Recognize, Relay and React to deteriorating patients
 
-# archiv: Benchmarking deteriorating patients
+# Arxiv: Benchmarking deteriorating patients
 https://arxiv.org/html/2602.20168  
 
 - Used only the information available in the first hour (like triage data) to predict clinical deterioration
 - Only used point in time predictive models to determine if patients would need ICU, weren't looking at all the decisions leading up to it
 
-# archiv: Measurement Scheduling for ICU patients
+# Arxiv: Measurement Scheduling for ICU patients
 https://arxiv.org/pdf/2402.07344  
 
 - Potential framework for offline RL with the MIMIC-IV data
@@ -42,3 +42,10 @@ https://arxiv.org/pdf/2512.10973
 
 # Arxiv: This one is mainly for ideas about LLM implementation
 https://arxiv.org/pdf/2509.00974
+
+# JMIR: Reinforcement Learning to optimize ventilator settings
+https://www.jmir.org/2024/1/e44494  
+
+- Used MIMIC data and data from e-ICU
+- Designed clinically supported reward functions with tunable parameters
+- Trained a supervisor network on the sequence of actions taken first to constrain the actions of the agent
