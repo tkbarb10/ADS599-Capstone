@@ -49,3 +49,11 @@ https://www.jmir.org/2024/1/e44494
 - Used MIMIC data and data from e-ICU
 - Designed clinically supported reward functions with tunable parameters
 - Trained a supervisor network on the sequence of actions taken first to constrain the actions of the agent
+
+# BMC: IRL in ventilation weaning
+https://link.springer.com/content/pdf/10.1186/s12911-019-0763-6?utm_source=scite
+
+- Used MIMIC-III data
+- Used IRL to learn the parameters of the reward function
+- State contained 13 variables and used SVM
+- Algo used was Bayesian IRL
