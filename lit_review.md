@@ -14,6 +14,7 @@ https://arxiv.org/pdf/2402.07344
 
 - Potential framework for offline RL with the MIMIC-IV data
 - Only used conditions within the ICU
+- measured in information gain, also looked at decisions at each step but in how they affected predicted mortality
 
 # JMIR Publications
 https://www.jmir.org/2020/7/e18477  
@@ -57,3 +58,16 @@ https://link.springer.com/content/pdf/10.1186/s12911-019-0763-6?utm_source=scite
 - Used IRL to learn the parameters of the reward function
 - State contained 13 variables and used SVM
 - Algo used was Bayesian IRL
+
+# PKP | PS: Admissible policy teaching through reward strategy
+https://ojs.aaai.org/index.php/AAAI/article/view/20550
+
+- Looks like this is from the AAAI conference
+- Looks at different reward strategies
+- Probably not needed for lit review but probably good for informing our reward strategy
+
+# Archiv: Outcome driven RL
+https://arxiv.org/pdf/2104.10190
+
+- Could be used to inform our reward strategy
+- train the model to infer the reward function by minimizing the distribution of the trajectory paths in the data for given paths and the learned policy

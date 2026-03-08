@@ -4,6 +4,7 @@ test.ipynb
 .claude/
 data/
 project_data.db
+actual_lit_review.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
