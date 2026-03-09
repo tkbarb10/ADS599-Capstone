@@ -71,3 +71,36 @@ https://arxiv.org/pdf/2104.10190
 
 - Could be used to inform our reward strategy
 - train the model to infer the reward function by minimizing the distribution of the trajectory paths in the data for given paths and the learned policy
+
+# MLR Press: Dynamic Measurement Scheduling for Offline RL
+https://proceedings.mlr.press/v97/chang19a/chang19a.pdf
+
+- Also measure the information gain
+- Eval model with off policy policy eval
+
+# Archiv: Global Explanation of RL models
+https://arxiv.org/pdf/2501.09858
+
+- Many methods can explain local decisions but none exist yet that explain the whole model
+
+# Archiv: Review of Mimic data uses, more in depth than JMIR
+https://arxiv.org/html/2506.12808v1#S3
+
+# Springer Nature: RL for healthcare operations management
+https://link.springer.com/article/10.1007/s10729-025-09699-6  
+
+- provide frameworks for applying RL in hospitals
+- Give a short tutorial of RL
+- Future direction and ideas 
+
+# Archiv: Distribution RL with Quantile Regression
+https://arxiv.org/pdf/1710.10044
+
+- Blueprint for setting up distributional RL
+
+# Nature: Article on interpretability and fairness in deep learning
+https://www.nature.com/articles/s41598-022-11012-2
+
+- covers in-depth eval methods for deep learning models
+- looks at how predictions on patient outcomes in the MIMIC data are affected by different bias attributes
+- attempts to link the interpretable aspect with the fairness aspect.  Interpretability can show which if any bias features are important to the models prediction
