@@ -27,6 +27,34 @@ Microbiology cultures are represented as a **single binary action: order culture
 ### Rationale
 Cultures ordered in the ER are a strong signal of physician suspicion of infection at triage, making them a meaningful action to include. We found ~160k unique ED stays across the full MIMIC-IV ED cohort that had at least one culture drawn during the ER visit, split between patients who were subsequently admitted (~150k rows) and patients discharged home (~50k rows).
 
+## Medication Actions
+
+Medication administration is represented as **4 discrete actions**, derived from the `event_txt` column of the `emar` table:
+
+| Action | emar `event_txt` values mapped | Clinical meaning |
+|---|---|---|
+| `administer_medication` | Administered, Partial Administered, Delayed Administered, Administered Bolus from IV Drip, Administered in Other Location | One-time dose (pill, injection, bolus, IV push) |
+| `start_medication` | Started, Restarted | Begin continuous infusion or drip. Restart is collapsed here — the agent's decision is identical to starting; it is a documentation artifact of a prior stop. |
+| `stop_medication` | Stopped, Stopped As Directed, Stopped - Unscheduled, Stopped in Other Location | Discontinue an active continuous infusion or drip |
+| `rate_change` | Rate Change | Titrate dose of an active drip without stopping it |
+| *(excluded)* | Flushed, Not Flushed, Flushed in Other Location | IV line maintenance — not a medication decision |
+| *(excluded)* | Applied, Removed, Removed Existing / Applied New, Not Removed | Topical/patch administration — different care context, excluded for simplicity |
+| *(excluded)* | Assessed, Not Assessed, Confirmed, Not Confirmed | Documentation and verification events — not clinical actions |
+| *(excluded)* | Not Given, Not Applied, Not Given per Sliding Scale | Non-events — medication was not administered; documentation artifacts |
+| *(excluded)* | Hold Dose | Intentional skip of a scheduled dose — not the same as stopping; excluded to avoid ambiguity with `stop_medication` |
+| *(excluded)* | Infusion Reconciliation, in Other Location | Administrative reconciliation events |
+| *(excluded)* | Delayed, Not Started, Not Stopped | Incomplete or cancelled intentions |
+
+### Rationale
+
+The `administer_medication` / `start_medication` distinction captures the clinically important difference between a one-time dose and the initiation of a continuous drip. Drip management (start, stop, titrate) is particularly relevant for ICU escalation decisions — vasopressor initiation and titration are strong signals of patient acuity.
+
+`rate_change` is retained as a separate action rather than folded into `start_medication` because titration frequency is itself a meaningful signal: patients requiring repeated upward titrations are deteriorating, while downward titration may precede successful discharge. Merging these would obscure that pattern.
+
+### Medication State Representation
+
+The active medication state (what drugs are currently running) is represented separately in the state vector, not through the action space. This handles the case where multiple medications are active simultaneously — each drug or drug class has its own state flag rather than being encoded as a compound action. The specific design of the medication state features is deferred to the feature engineering phase (Stage 2.1) and will be documented here once finalized.
+
 ## Lab Orders
 
 Labs are represented as **19 discrete actions**, one per unique combination of `category` and `fluid` present in the ED cohort. This replaces the prior design of 35 individual actions per unique `label`.

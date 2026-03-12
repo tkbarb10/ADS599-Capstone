@@ -195,7 +195,7 @@ Lock in what the agent "sees" at each timestep. Break into:
 |---|---|---|
 | Action space granularity | Open | Requires Stage 1 Pyxis/radiology cardinality analysis |
 | RL algorithm selection | Open | See Stage 0.5 options; must include distributional output |
-| Time step interval | Open | Set after Stage 1 stay-duration distribution analysis |
+| Time step interval | Open | Set after Stage 1 stay-duration distribution analysis. Time intervals or event-driven? |
 | Reward function values | Open | Define exact numerical values |
 | Episode max length | Open | Set after Stage 1 stay-duration analysis |
 | Termination states | Open | Are admit_ICU / discharge_home / deceased terminal? Depends on MIMIC in-ED death tracking |
