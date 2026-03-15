@@ -5,6 +5,7 @@ test.ipynb
 data/
 project_data.db
 actual_lit_review.md
+data_pipeline.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

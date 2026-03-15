@@ -18,6 +18,24 @@ A time-decay feature on the order time is deferred to the feature engineering ph
 
 ## What the time step is
 
+## Training Data Structure
+
+Each row is a `(visit_id, time_step)` tuple representing the full patient state and the action taken during that time step. The number of rows per visit varies based on visit length; padding happens in the model dataloader at training time, not in the stored dataset.
+
+| visit_id | time_step | temperature | culture_ordered | lab_hematology_blood | lab_chemistry_blood | administer_medication | start_medication | stop_medication | rate_change | order_culture | order_lab | observe | reward |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| v001 | 1 | 38.2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
+| v001 | 2 | 38.5 | 0 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
+| v001 | 3 | 38.8 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
+| v001 | 4 | 39.1 | 1 | 1 | 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| v001 | 5 | 38.6 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | -1 |
+| v002 | 1 | 37.1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
+| v002 | 2 | 37.3 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... |
+| v002 | 48 | 37.0 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
+
+Action columns are mutually exclusive — exactly one is `1` per time step. State columns reflect the patient's known state at the start of that time step; values carry forward from prior steps until updated.
+
 # Actions
 
 ## Microbiology / Culture Orders
@@ -29,7 +47,7 @@ Cultures ordered in the ER are a strong signal of physician suspicion of infecti
 
 ## Medication Actions
 
-Medication administration is represented as **4 discrete actions**, derived from the `event_txt` column of the `emar` table:
+Medication administration is represented as **4 discrete actions**. For admitted patients, these are derived from the `event_txt` column of the `hosp.emar` table. For ED-only patients (and ED-phase events for admitted patients), Pyxis dispenses from `ed.pyxis` map to `administer_medication` — the only action available during an ED stay, since drips, rate changes, and stops are inpatient concepts.
 
 | Action | emar `event_txt` values mapped | Clinical meaning |
 |---|---|---|
@@ -54,6 +72,7 @@ The `administer_medication` / `start_medication` distinction captures the clinic
 ### Medication State Representation
 
 The active medication state (what drugs are currently running) is represented separately in the state vector, not through the action space. This handles the case where multiple medications are active simultaneously — each drug or drug class has its own state flag rather than being encoded as a compound action. The specific design of the medication state features is deferred to the feature engineering phase (Stage 2.1) and will be documented here once finalized.
+
 
 ## Lab Orders
 
