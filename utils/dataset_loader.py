@@ -9,7 +9,7 @@ DATASETS = {
     "meds_admitted": ("meds_admitted","meds_admit"),
     "ecg": ("ecg", "ecg"),
     "microbiology_events": ("microbiology_events", "microbiology_events"),
-    "labs_base": ("labs_base", "labs_base"),
+    "labs_base": ("labs_base", "train"),
     "medrecon": ("medrecon", "medrecon"),
     "omr": ("omr", "omr"),
     "radiology_details": ("radiology_details", "radiology_details"),
@@ -25,15 +25,15 @@ def mimic_loader(path: str, name: str):
     name : str
         Logical dataset name. Must be a key in DATASETS. Valid options:
             "cohort_base" - base ED cohort, one row per ED visit
-            "cohort_with_triage" - cohort with triage merged in, AGAINST ADVICE removed
+            "cohort_with_triage" - cohort with triage merged in, AGAINST ADVICE removed from discharge_location
             "vitals" - ED vital signs time series
             "ed_only_meds" - Pyxis dispense records for ED-only patients
-            "meds_admitted" - eMAR medication records for admitted patients
-            "ecg" - ECG machine report text (report_0–report_17 concatenated)
-            "microbiology_events" - culture orders and results
+            "meds_admitted" - eMAR medication records for admitted patients (includes pyxis records from prior to hospital admission)
+            "ecg" - ECG machine report text (report_0–report_17 concatenated into one column)
+            "microbiology_events" - culture orders and results for the patient cohort
             "labs_base" - lab results grouped by category × fluid
             "medrecon" - pre-arrival medication reconciliation
-            "omr" - outpatient measurements (BP, weight, height, BMI)
+            "omr" - outpatient measurements (weight, height, eGFR).  BP and BMI removed
             "radiology_details" - radiology report text with exam_name and cpt_code
 
     Returns
