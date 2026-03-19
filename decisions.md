@@ -106,6 +106,80 @@ Each category × fluid combination maps to a **single 3-state ordinal feature** 
 
 Stays in the extreme tail of the length-of-stay distribution will be removed from the training cohort. Exceptionally long hospital stays introduce non-representative trajectories with unusual lab ordering patterns driven by chronic care rather than acute decision-making, which can distort the learned policy. A length-of-stay cutoff (e.g., 95th or 99th percentile) will be applied during cohort construction; the exact threshold will be determined during EDA.
 
+# Outliers
+
+## Triage Data
+
+Triage vitals in the MIMIC-IV ED dataset contain a significant number of implausible values, likely due to data entry errors (extra digits, wrong units, transposed values). The strategy is to correct values where a clear pattern exists, null out values where no reliable correction is possible, and impute remaining nulls using KNN in a later step. Corrections are applied in a fixed order within each variable because some transforms create values that are then caught by a downstream rule.
+
+### Temperature
+
+Normal range: 97–99°F. Hypothermia below 95°F, severe below 82°F. Hyperthermia above 100°F, severe above 104°F. Recorded values extend up to 110–115°F in rare cases.
+
+| Rule | Action | Assumption |
+|---|---|---|
+| Value > 900 | Divide by 10 | Extra digit entered (e.g. 986 → 98.6) |
+| 28 < value ≤ 40 | Convert Celsius → Fahrenheit: `(x * 1.8) + 32` | Value was recorded in Celsius instead of Fahrenheit |
+| 5 < value < 10 | Multiply by 10 | Missing leading digit (e.g. 9.8 → 98) |
+| Value > 115 | Set to null | No recoverable correction pattern; KNN imputation |
+
+Values below 82°F that survive all transforms (e.g. the 46–80°F range) are left as-is and will be addressed in a downstream validation step or absorbed by KNN imputation. There is not enough confidence to correct or null these without additional context.
+
+### Heart Rate
+
+Normal range: 60–100 bpm. Tachycardia above 100, bradycardia below 60. Values below 20 are inconsistent with a living patient at triage.
+
+| Rule | Action | Assumption |
+|---|---|---|
+| Value > 500 | Divide by 10 | Extra digits entered (e.g. 800 → 80) |
+| Value < 20 | Set to null | No clear correction pattern; KNN imputation |
+
+Values in the 256–500 range are left as-is. Spot-checking suggests most are plausible extreme tachycardia, and there is no consistent correction pattern for the minority that may be errors.
+
+### Respiratory Rate
+
+Normal range: 12–20 breaths/min. Above 20–25 can indicate tachypnea.
+
+| Rule | Action | Assumption |
+|---|---|---|
+| Value > 1000 | Divide by 100, round | Two extra digits entered (e.g. 1800 → 18) |
+| 100 < value ≤ 1000 | Divide by 10, round | One extra digit entered (e.g. 180 → 18) |
+| Value < 4 | Set to null | No clear correction pattern; KNN imputation |
+
+The divide-by-100 rule is applied before divide-by-10 to avoid double-correcting values above 1000.
+
+### O2 Saturation
+
+Normal range: 95–100%. Clinically significant drop below 88%.
+
+| Rule | Action | Assumption |
+|---|---|---|
+| 900 < value < 1010 | Divide by 10, floor | Extra digit entered (e.g. 980 → 98, 1000 → 100) |
+| 0 < value ≤ 10 | Add 90 | Missing leading digit (e.g. 8 → 98) |
+| value == 0, value > 100, or value < 40 | Set to null | Not recoverable; KNN imputation |
+
+Values in the 40–88 range are left as-is — many in this range are clinically plausible (severely hypoxic patients), and there is not enough confidence to null them without individual review.
+
+### Systolic Blood Pressure
+
+Normal range: 90–120 mmHg. Elevated 120–140, hypertensive 140+. Critically low below 50–60.
+
+| Rule | Action | Assumption |
+|---|---|---|
+| Value > 270 | Set to null | Spot-checking found no consistent correction pattern above this threshold |
+| Value < 40 | Set to null | Too low to be plausible at triage |
+
+Values between 40 and 270 are retained. There is a cluster near 24–40 that is suspicious but enough values in that range appear accurate upon spot-checking to avoid a blanket null.
+
+### Diastolic Blood Pressure
+
+Normal range: 60–80 mmHg. Elevated 80–120+. Values below 50 start to get low.
+
+| Rule | Action | Assumption |
+|---|---|---|
+| Value > 150 | Set to null | Likely charting errors with no clear correction pattern |
+| Value < 20 | Set to null | Too low to be plausible |
+
 # Rewards
 
 ## Estimating values of rewards
