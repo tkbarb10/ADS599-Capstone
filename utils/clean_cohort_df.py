@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import re
 
 def fix_triage_outliers(df):
     d = df.copy()
@@ -17,7 +18,7 @@ def fix_triage_outliers(df):
     d['temperature'] = d['temperature'].apply(lambda x: x * 10 if pd.notna(x) and 5 < x < 10 else x)
 
     # Values >115: no recoverable pattern → null for imputation
-    d['temperature'] = d['temperature'].apply(lambda x: np.nan if pd.notna(x) and x > 115 else x)
+    d['temperature'] = d['temperature'].apply(lambda x: np.nan if pd.notna(x) and x > 115 or x < 70 else x)
 
     # ── Heart rate ───────────────────────────────────────────────────────────
     # Values >500: assumed extra digits entered (e.g. 800 → 80)
@@ -56,4 +57,54 @@ def fix_triage_outliers(df):
     # Values <20: too low to be plausible → null
     d['dbp'] = d['dbp'].apply(lambda x: np.nan if pd.notna(x) and (x > 150 or x < 20) else x)
 
+    return d
+
+
+def clean_pain_column(df):
+    d = df.copy()
+
+    # Normalize to lowercase string, strip punctuation artifacts (quotes, >, -, +)
+    d['pain'] = (
+        d['pain'].astype('str').str.lower().str.strip()
+        .str.strip('"').str.strip('\u201c').str.strip('\u201d')
+        .str.strip('>').str.strip('-').str.strip('+')
+    )
+
+    # Range entries like "5-7" → take the lower (first) value
+    d['pain'] = d['pain'].str.replace(r'(\d)-\d', r'\1', regex=True)
+
+    # Coerce to numeric; anything non-numeric (text descriptions) → NaN
+    d['pain'] = pd.to_numeric(d['pain'], errors='coerce')
+
+    # Values >10: not a valid 0–10 pain scale entry → NaN
+    # Could be mis-entries, carryover from another field, or a different scale (e.g. GCS)
+    d['pain'] = d['pain'].apply(lambda x: np.nan if pd.notna(x) and x > 10 else x)
+
+    # Round floats to nearest integer (pain scale is whole numbers), fill NaN with 'Other'
+    d['pain'] = d['pain'].apply(lambda x: round(x) if pd.notna(x) else x).fillna('Other')
+
+    return d
+
+
+_RACE_MAP = [
+    ('White', r'white|portuguese|brazilian'),
+    ('Black', r'black|african'),
+    ('Hispanic', r'hispanic|latino|south american'),
+    ('Asian', r'asian|pacific islander|hawaiian'),
+    ('Native American', r'american indian|alaska native'),
+]
+
+def simplify_race_column(df):
+    d = df.copy()
+
+    def _collapse(val):
+        if pd.isna(val):
+            return 'Other'
+        v = str(val).lower()
+        for label, pattern in _RACE_MAP:
+            if re.search(pattern, v):
+                return label
+        return 'Other'
+
+    d['race'] = d['race'].apply(_collapse)
     return d

@@ -180,6 +180,42 @@ Normal range: 60–80 mmHg. Elevated 80–120+. Values below 50 start to get low
 | Value > 150 | Set to null | Likely charting errors with no clear correction pattern |
 | Value < 20 | Set to null | Too low to be plausible |
 
+## Race
+
+The raw `race` column contains 33 distinct categories, which is too high a cardinality to use directly as a state feature. The column is collapsed to 6 categories using regex matching on the original string values.
+
+**Collapsed categories:**
+
+| Category | Covers |
+|---|---|
+| `White` | WHITE, WHITE - OTHER EUROPEAN, WHITE - EASTERN EUROPEAN, WHITE - RUSSIAN, WHITE - BRAZILIAN, PORTUGUESE |
+| `Black` | BLACK/AFRICAN AMERICAN, BLACK/AFRICAN, BLACK/CAPE VERDEAN, BLACK/CARIBBEAN ISLAND |
+| `Hispanic` | HISPANIC OR LATINO, all HISPANIC/LATINO - * subcategories, SOUTH AMERICAN |
+| `Asian` | ASIAN, all ASIAN - * subcategories, NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER |
+| `Native American` | AMERICAN INDIAN/ALASKA NATIVE |
+| `Other` | OTHER, MULTIPLE RACE/ETHNICITY, UNKNOWN, PATIENT DECLINED TO ANSWER, UNABLE TO OBTAIN, NaN |
+
+**Rationale for Unknown/Declined → Other:** These patients have a race — we simply don't know what it is. Creating a separate `Unknown` category would imply a meaningful distinction that doesn't exist. Collapsing them into `Other` is more honest about what the data actually represents.
+
+## Pain
+
+The `pain` column is a 0–10 self-reported pain scale recorded at triage. It is not used as a triage vital for imputation purposes but is retained as a state feature. Missing or non-numeric values are masked as `'Other'` in the patient state rather than imputed, since pain is subjective and patient-reported — imputing it from other vitals would not be meaningful.
+
+**Main issues:**
+- Mixed types: the column contains integers, floats, free-text strings, and punctuation artifacts (quotes, `>`, `-`, `+`)
+- Range entries: some values are entered as a range (e.g. `5-7`) rather than a single number
+- Values above 10: present in significant volume; could be mis-entries, carryovers from another field, or a different scale (e.g. Glasgow Coma Scale, which would partially explain the large cluster at 13)
+- Float values: the scale is 0–10 integers; floats need to be rounded
+
+| Step | Action | Assumption |
+|---|---|---|
+| Strip punctuation and normalize case | Remove `"`, `"`, `"`, `>`, `-`, `+` from start/end; lowercase | These are data entry artifacts, not meaningful values |
+| Range entries `#-#` | Replace with first (lower) number | The lower end of a reported range is the more conservative estimate |
+| Coerce to numeric | Non-numeric strings → NaN | Free-text entries are not recoverable as a pain score |
+| Values > 10 | Set to NaN | Not a valid 0–10 scale entry; source is ambiguous and not correctable |
+| Float values | Round to nearest integer | Pain scale is whole numbers only |
+| Remaining NaN | Fill with `'Other'` | Missing pain scores are masked in the patient state rather than imputed |
+
 # Rewards
 
 ## Estimating values of rewards
