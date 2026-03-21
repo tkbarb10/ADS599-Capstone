@@ -102,13 +102,13 @@ Each category × fluid combination maps to a **single 3-state ordinal feature** 
 
 **Most recent result update:** At each time step, the action and result features reflect only the most recent observation for that category × fluid combination — prior results are not accumulated. This keeps the state vector fixed-size and ensures the agent is always acting on the current best information.
 
-### Outlier Handling
+# Outlier Handling for Stay Length
 
 Stays in the extreme tail of the length-of-stay distribution will be removed from the training cohort. Exceptionally long hospital stays introduce non-representative trajectories with unusual lab ordering patterns driven by chronic care rather than acute decision-making, which can distort the learned policy. A length-of-stay cutoff (e.g., 95th or 99th percentile) will be applied during cohort construction; the exact threshold will be determined during EDA.
 
-# Outliers
+# Cohort DF EDA/Prep
 
-## Triage Data
+## Triage Outliers/Missing
 
 Triage vitals in the MIMIC-IV ED dataset contain a significant number of implausible values, likely due to data entry errors (extra digits, wrong units, transposed values). The strategy is to correct values where a clear pattern exists, null out values where no reliable correction is possible, and impute remaining nulls using KNN in a later step. Corrections are applied in a fixed order within each variable because some transforms create values that are then caught by a downstream rule.
 
@@ -215,6 +215,22 @@ The `pain` column is a 0–10 self-reported pain scale recorded at triage. It is
 | Values > 10 | Set to NaN | Not a valid 0–10 scale entry; source is ambiguous and not correctable |
 | Float values | Round to nearest integer | Pain scale is whole numbers only |
 | Remaining NaN | Fill with `'Other'` | Missing pain scores are masked in the patient state rather than imputed |
+
+# Lab Event EDA/Prep
+
+## Lab Event Simplification
+
+The raw lab events table contains one row per individual lab test result, meaning a single lab order batch (e.g. a CBC) can produce 20+ rows for the same patient at the same timestamp. To simplify the action space and reduce redundancy, the table is collapsed to one row per `(ed_stay_id, category, fluid, order_time)` group.
+
+**Action space:** Instead of using individual lab `label` as the action (high cardinality), we use the unique combination of `category` and `fluid`. This yields 19 possible lab actions the agent can take, which is tractable and clinically meaningful — e.g. ordering Hematology/Blood is a distinct decision from ordering Chemistry/Urine.
+
+**Collapsing logic:**
+- One row per `(ed_stay_id, category, fluid, order_time)` — this represents a single lab action at a point in time
+- `abnormal`: `True` if any individual result in the group had a non-null flag, `False` otherwise. Non-null flag = abnormal result; null = normal.
+- `result_time`: max across the group — represents when all results in the batch are back
+- `subject_id`, `hadm_id`, `ordered_location`: same within a group, take first value
+
+**Example:** A patient with 24 Hematology/Blood labs ordered at the same timestamp collapses to a single row. If any of those 24 came back abnormal, `abnormal=True`.
 
 # Rewards
 
