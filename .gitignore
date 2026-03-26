@@ -7,6 +7,8 @@ project_data.db
 actual_lit_review.md
 data_pipeline.ipynb
 old_files/
+data_understanding.md
+data_combine.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

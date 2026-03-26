@@ -13,6 +13,7 @@ DATASETS = {
     "medrecon": ("medrecon", "medrecon"),
     "omr": ("omr", "omr"),
     "radiology_details": ("radiology_details", "radiology_details"),
+    "empty_patient_state": ('empty_patient_state', "empty_patient_state")
 }
 
 def mimic_loader(path: str, name: str):

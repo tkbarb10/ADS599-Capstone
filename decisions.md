@@ -180,6 +180,14 @@ Normal range: 60–80 mmHg. Elevated 80–120+. Values below 50 start to get low
 | Value > 150 | Set to null | Likely charting errors with no clear correction pattern |
 | Value < 20 | Set to null | Too low to be plausible |
 
+## Stay Window Correction (Inverted Times)
+
+A small number of records had `stay_window_end` before `stay_window_start`, producing negative `time_steps`. The common pattern among these records was in-hospital death — discharge times were recorded in a disjointed way relative to the ED arrival, causing the window to appear inverted.
+
+**Fix:** For each affected `hadm_id`, the true min `intime` and max `outtime` were looked up directly from the ICU stay records and used to replace the incorrect `stay_window_start` and `stay_window_end` values. These corrected times were saved to `df_grouped.csv` and applied via a map on `hadm_id` before `time_steps` is calculated.
+
+A small number of records (~5) had no hospital stay at all (null stay window after correction) and were dropped from the cohort.
+
 ## Race
 
 The raw `race` column contains 33 distinct categories, which is too high a cardinality to use directly as a state feature. The column is collapsed to 6 categories using regex matching on the original string values.
