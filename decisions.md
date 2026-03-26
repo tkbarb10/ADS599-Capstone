@@ -12,9 +12,16 @@ A time-decay feature on the order time is deferred to the feature engineering ph
 
 `culture_positive` (whether the culture grew an organism) is retained in the dataset as a **retrospective training label** and for post-analysis, but is NOT a real-time state feature — only ~2% of culture results were available before ED discharge, so it carries no meaningful signal during the visit.
 
-### `org_name` and `comments`
+### `culture_result` labeling
 
-`org_name` alone is not a fully reliable indicator of a positive result — spot checks found cases where `org_name` is NULL but `comments` contains text describing positive growth. Both columns are retained in the dataset so that a robust `culture_positive` label can be derived in post-processing using `org_name IS NOT NULL` OR regex matches on `comments` (e.g., patterns like "positive", organism names, colony count descriptions). This gives us the best coverage without requiring manual review of every free-text entry.
+A `culture_result` column is derived from `org_name` and `comments` using a regex-based classification function. `org_name` is checked first; if null, `comments` is checked. The four result labels are:
+
+- **POSITIVE** — `org_name` contains an organism name (no negative keyword present); or `comments` contains colony counts, growth language, contamination, or other clinical indicators of a positive result
+- **NEGATIVE** — `org_name` or `comments` contains language indicating no organism detected: no growth, not detected, negative, nonreactive, indeterminate, or no [organism] seen/found/isolated
+- **CANCELLED** — `org_name` or `comments` indicates the test was not completed: cancelled, test not performed, or patient credited
+- **OTHER** — both `org_name` and `comments` are null, or `comments` contains only placeholder characters (underscores, dashes) with no interpretable content
+
+`org_name` alone is not a fully reliable indicator — some positives are documented only in free-text `comments`. The classifier handles both columns to maximize coverage without manual review.
 
 ## What the time step is
 
@@ -40,10 +47,12 @@ Action columns are mutually exclusive — exactly one is `1` per time step. Stat
 
 ## Microbiology / Culture Orders
 
-Microbiology cultures are represented as a **single binary action: order culture (yes/no)**. We do not enumerate specific culture types (blood, urine, sputum, etc.) as separate actions. The clinically meaningful decision is whether to send cultures at all — the specific type is a downstream detail driven by clinical context that we do not need the agent to learn separately.
+Microbiology cultures are represented as discrete actions by specimen type. The `action_space` column takes the `spec_type_desc` value for the top 20 most frequent specimen types and buckets all remaining specimen types into `'OTHER'`.
 
 ### Rationale
-Cultures ordered in the ER are a strong signal of physician suspicion of infection at triage, making them a meaningful action to include. We found ~160k unique ED stays across the full MIMIC-IV ED cohort that had at least one culture drawn during the ER visit, split between patients who were subsequently admitted (~150k rows) and patients discharged home (~50k rows).
+The top 20 specimen types cover ~97% of all microbiology records in the cohort. The remaining types are rare, heterogeneous, and do not represent clinically distinct decisions in the ED context — bucketing them as `OTHER` preserves signal from the long tail without inflating the action space. The specific specimen type ordered (blood culture vs. urine vs. swab, etc.) carries meaningful clinical signal about what infection the clinician suspects, so collapsing all cultures into a single binary action would discard this information.
+
+Records where `storetime > stay_window_end` (result came back after the patient's care window ended) are dropped. Stay window end is: `first_icu_intime` for ICU patients, `dischtime` for admitted non-ICU patients, and `ed_outtime` for ED-only discharges. Results arriving after the stay cannot be used as real-time state features and cannot inform the `culture_positive` retrospective label for the relevant care episode.
 
 ## Medication Actions
 
