@@ -11,7 +11,8 @@ DATASETS = {
     "microbiology_events": ("microbiology_events", "microbiology_events"),
     "labs_base": ("labs_base", "train"),
     "medrecon": ("medrecon", "medrecon"),
-    "omr": ("omr", "omr"),
+    "height": ("height", "height"),
+    "weight": ("weight", 'weight'),
     "radiology_details": ("radiology_details", "radiology_details"),
     "empty_patient_state": ('empty_patient_state', "empty_patient_state")
 }
@@ -34,7 +35,8 @@ def mimic_loader(path: str, name: str):
             "microbiology_events" - culture orders and results for the patient cohort
             "labs_base" - lab results grouped by category × fluid
             "medrecon" - pre-arrival medication reconciliation
-            "omr" - outpatient measurements (weight, height, eGFR).  BP and BMI removed
+            "height" - height measurements for single patient, own folder
+            'weight" - weight measurements for each patient stay in hospital
             "radiology_details" - radiology report text with exam_name and cpt_code
 
     Returns

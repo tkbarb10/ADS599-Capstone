@@ -63,6 +63,7 @@ Lock in what the agent "sees" at each timestep. Break into:
   - `order_labs`
   - `order_imaging`
   - `give_medication`
+  - `order_cultures`
   - `admit_ward`
   - `admit_ICU`
   - `discharge_home`
@@ -78,6 +79,7 @@ Lock in what the agent "sees" at each timestep. Break into:
   - **Small penalty**: delayed ICU escalation (ED_WARD_ICU vs ED_DIRECT_ICU — path was correct, timing was slow)
 - Time-based reward component: faster correct final disposition earns higher reward than slower correct disposition
 - Document all reward values explicitly in `decisions.md`
+- Relative weight, tune the scale parameter, then sensitivity analysis for each to see how much results change (gauge stability of reward design)
 
 ### 0.5 Select RL Algorithm
 **Open decision — resolve after data exploration.** Regardless of algorithm chosen, the implementation must produce a **distribution over Q-values** (not a point estimate) to properly quantify uncertainty in policy recommendations.

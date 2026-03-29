@@ -233,6 +233,48 @@ The `pain` column is a 0–10 self-reported pain scale recorded at triage. It is
 | Float values | Round to nearest integer | Pain scale is whole numbers only |
 | Remaining NaN | Fill with `'Other'` | Missing pain scores are masked in the patient state rather than imputed |
 
+# Vitals EDA/Prep
+
+## Rhythm Column
+
+The `rhythm` column (cardiac rhythm, e.g. "Sinus Rhythm", "Atrial Fibrillation") is dropped from the vitals dataframe. It is too sparse and too high-cardinality to impute meaningfully, and encoding it as a categorical state feature is deferred pending a decision on how to represent rhythm in the action/state space.
+
+## Triage Row Injection
+
+Before imputation, the triage vitals from the cohort dataframe (`cohort_with_triage`) are injected as a synthetic first reading for each ED stay. The triage row uses `ed_intime` as its `charttime` and carries the triage values for all numeric vital columns. This serves two purposes:
+1. Anchors the time series at the start of the stay so ffill/bfill has a starting value to propagate
+2. Ensures patients who have triage vitals but no charted vitals readings still contribute imputable data
+
+## Missing Value Imputation Strategy
+
+Imputation is applied in three passes in order:
+
+1. **Forward fill within stay** — sorts by `(ed_stay_id, charttime)` then propagates the last known reading forward. The last recorded value is the best real-time estimate of the current patient state.
+2. **Backward fill within stay** — fills leading NaNs at the start of a stay (where ffill has nothing to propagate from). Both passes are bounded to the stay — values never bleed across stays.
+3. **IterativeImputer** — for stays that had no reading at all for a given column after ff/bfill, `sklearn.impute.IterativeImputer` models each feature as a function of the other vital columns to fill remaining nulls. `random_state=10`.
+
+Pain and rhythm are excluded from this imputation pipeline. Pain `'Other'` values (non-numeric entries) are retained as-is — see Pain section above.
+
+## Feature Engineering
+
+After imputation, the following features are derived from the numeric vital columns (`temperature`, `heartrate`, `resprate`, `o2sat`, `sbp`, `dbp`):
+
+### Time-based features (per stay, sorted by charttime)
+
+| Feature | Formula | Notes |
+|---|---|---|
+| `time_since_last_hrs` | `diff(charttime)` in hours | Hours since previous reading within the stay. First reading of each stay is NaN. Also a feature in its own right — frequent readings signal closer monitoring. |
+| `{col}_rolling2h` | 2-hour trailing rolling mean | Time-based window (not row-based) so irregular sampling is handled correctly. Computed per stay using `set_index('charttime').rolling('2h')`. |
+| `{col}_delta` | `diff()` of column values | 1-step change from previous reading. First reading of each stay is NaN. |
+| `{col}_rate` | `{col}_delta / time_since_last_hrs` | Rate of change in units per hour. Normalises delta for the time gap between readings. |
+
+### Blood pressure derived features
+
+| Feature | Formula | Clinical meaning |
+|---|---|---|
+| `pulse_pressure` | `sbp - dbp` | Reflects stroke volume and arterial stiffness. Wide PP can indicate sepsis or aortic regurgitation; narrow PP suggests low cardiac output. |
+| `map` | `dbp + (sbp - dbp) / 3` | Mean Arterial Pressure — standard clinical measure of average perfusion pressure. Often more predictive of organ perfusion than sbp or dbp alone. |
+
 # Lab Event EDA/Prep
 
 ## Lab Event Simplification
