@@ -8,4 +8,5 @@ dependencies = [
     "datasets>=4.8.4",
     "pandas>=3.0.1",
     "scikit-learn>=1.8.0",
+    "torch>=2.11.0",
 ]
