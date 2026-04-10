@@ -9,6 +9,7 @@ data_pipeline.ipynb
 old_files/
 data_understanding.md
 .vscode/
+logs/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

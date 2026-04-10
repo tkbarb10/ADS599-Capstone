@@ -1,0 +1,28 @@
+cohort_base:
+  dataset: rl_project
+  table: cohort_base
+
+logging:
+  path: validation.log
+
+hugging_face:
+  interim_data_repo: ADS599-Capstone/interim_data
+  modeling_data_repo: ADS599-Capstone/modeling_data
+  cohort:
+    config_name: cohort_full
+    split_name: cohort_base
+    data_dir: cohort
+  empty_patient_state:
+    config_name: empty_patient_state
+    split_name: empty_patient_state
+    data_dir: patient_state
+  dispensed_meds:
+    config_name: dispensed_meds
+    split_name: er_and_ward
+    data_dir: dispensed_meds
+  ecg:
+    config_name: ecg_results
+    split_name: full_ecg
+    data_dir: ecg
+
+time_block: 30

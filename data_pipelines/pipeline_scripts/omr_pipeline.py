@@ -1,0 +1,8 @@
+from pathlib import Path
+from utils.bq import get_client, query_to_df
+
+SQL_DIR = Path(__file__).parent.parent / "sql_scripts"
+
+client, PROJECT_NAME = get_client()
+query = (SQL_DIR / "omr.sql").read_text()
+df_omr = query_to_df(client, query)
