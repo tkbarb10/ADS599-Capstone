@@ -6,7 +6,20 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "datasets>=4.8.4",
+    "db-dtypes>=1.4.4",
+    "dotenv>=0.9.9",
+    "google-cloud-bigquery>=3.41.0",
+    "google-cloud-bigquery-storage>=2.37.0",
+    "matplotlib>=3.10.8",
     "pandas>=3.0.1",
+    "polars>=1.39.3",
+    "pyarrow>=23.0.1",
     "scikit-learn>=1.8.0",
     "torch>=2.11.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["utils*"]
+
+[tool.uv]
+package = true
