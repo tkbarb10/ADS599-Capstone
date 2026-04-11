@@ -21,7 +21,7 @@ def filter_admin_rows(df: pd.DataFrame) -> pd.DataFrame:
     mask = df['exam_name'].str.contains('|'.join(_ADMIN_PATTERNS), na=False)
     before = len(df)
     df = df[~mask].copy()
-    logger.info(f"Removed {before - len(df):,} admin rows — remaining: {len(df):,}")
+    logger.info(f"Removed {before - len(df):,} admin rows - remaining: {len(df):,}")
     return df
 
 

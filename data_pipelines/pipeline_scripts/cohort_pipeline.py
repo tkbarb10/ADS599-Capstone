@@ -36,7 +36,7 @@ if __name__ == "__main__":
     DESTINATION = os.environ.get("COHORT_DESTINATION")
     client, PROJECT_NAME = get_client()
     df = query_to_df(client, f"SELECT * FROM `{DESTINATION}`")
-    logger.info(f"Loaded from BQ — shape: {df.shape}")
+    logger.info(f"Loaded from BQ - shape: {df.shape}")
     logger.debug(f"Cohort label distribution (raw):\n{df['cohort_label'].value_counts()}")
 
     # 2. Fix label mismatches
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     # 3. Remove AGAINST ADVICE rows (already filtered in SQL but guard here)
     before = len(df)
     df = df[df['discharge_location'] != 'AGAINST ADVICE'].copy()
-    logger.info(f"Dropped {before - len(df):,} AGAINST ADVICE rows — remaining: {len(df):,}")
+    logger.info(f"Dropped {before - len(df):,} AGAINST ADVICE rows - remaining: {len(df):,}")
 
     # 4. Collapse consecutive ED visits sharing a hadm_id
     df = merge_duplicate_hadm_id(df)

@@ -47,8 +47,8 @@ if __name__ == "__main__":
     # 3. Split into height and weight, drop duplicates
     omr_h = df[df['result_name'] == 'Height'].drop_duplicates().reset_index(drop=True)
     omr_w = df[df['result_name'] == 'Weight'].drop_duplicates().reset_index(drop=True)
-    logger.info(f"Height rows: {len(omr_h):,} — unique subjects: {omr_h['subject_id'].nunique():,}")
-    logger.info(f"Weight rows: {len(omr_w):,} — unique subjects: {omr_w['subject_id'].nunique():,}")
+    logger.info(f"Height rows: {len(omr_h):,} - unique subjects: {omr_h['subject_id'].nunique():,}")
+    logger.info(f"Weight rows: {len(omr_w):,} - unique subjects: {omr_w['subject_id'].nunique():,}")
 
     # 4. Push height to HuggingFace
     ds_h = Dataset.from_pandas(omr_h, preserve_index=False)

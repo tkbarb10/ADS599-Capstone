@@ -28,6 +28,10 @@ hugging_face:
     config_name: medrecon
     split_name: medrecon_full
     data_dir: medrecon_data
+  microbiology:
+    config_name: microbiology
+    split_name: microbiology_full
+    data_dir: microbiology_data
   radiology:
     config_name: rad_results
     split_name: rad_full

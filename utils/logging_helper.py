@@ -30,7 +30,12 @@ def setup_logging(log_file=log_file_path):
     # Add handlers
     logger.addHandler(debug_handler)
     logger.addHandler(validation_handler)
-    
+
+    # Suppress noisy third-party loggers
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('datasets').setLevel(logging.WARNING)
+    logging.getLogger('huggingface_hub').setLevel(logging.WARNING)
+
     return logger
 
 # In your main script:

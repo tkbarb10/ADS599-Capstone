@@ -54,7 +54,7 @@ if __name__ == "__main__":
         split=cohort_hf['split_name'],
     )
     df_cohort = cohort_ds.to_pandas()
-    logger.info(f"\nCohort loaded — {len(df_cohort):,} rows\n")
+    logger.info(f"\nCohort loaded - {len(df_cohort):,} rows\n")
 
     # 5. Compute minutes_into_stay and time_step
     df = add_minutes_into_stay(df, df_cohort, time_block)

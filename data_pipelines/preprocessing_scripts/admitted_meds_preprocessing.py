@@ -16,7 +16,7 @@ def filter_non_admin_events(df: pd.DataFrame) -> pd.DataFrame:
     mask = df['event_txt'].str.lower().str.contains('|'.join(_NON_ADMIN), na=False)
     before = len(df)
     df = df[~mask].copy()
-    logger.info(f"Dropped {before - len(df):,} non-admin event rows — remaining: {len(df):,}")
+    logger.info(f"Dropped {before - len(df):,} non-admin event rows - remaining: {len(df):,}")
     return df
 
 

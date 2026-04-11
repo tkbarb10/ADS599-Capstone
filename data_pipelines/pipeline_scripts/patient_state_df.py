@@ -47,7 +47,7 @@ if __name__ == "__main__":
         split=cohort_hf['split_name'],
     )
     df_cohort = cohort_ds.to_pandas()
-    logger.info(f"\nCohort loaded — shape: {df_cohort.shape}\n")
+    logger.info(f"\nCohort loaded - shape: {df_cohort.shape}\n")
 
     # 2. Build empty patient state
     df_state = setup_empty_patient_state(df_cohort)
