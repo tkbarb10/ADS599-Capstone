@@ -3,7 +3,7 @@ from pathlib import Path
 
 from datasets import load_dataset, Dataset
 from utils.bq import get_client, query_to_df
-from utils.load_yaml_helper import load_yaml
+from utils.load_yaml_helper import load_yaml, get_sql_dir
 from utils.logging_helper import setup_logging
 from data_pipelines.preprocessing_scripts.admitted_meds_preprocessing import (
     filter_non_admin_events,
@@ -16,7 +16,7 @@ from data_pipelines.feature_engineering.meds_features import (
 
 logger = setup_logging()
 settings = load_yaml("project_setup/settings.yaml")
-SQL_DIR = Path(__file__).parent.parent.parent / "sql_scripts"
+SQL_DIR = get_sql_dir()
 
 if __name__ == "__main__":
     hf = settings['hugging_face']

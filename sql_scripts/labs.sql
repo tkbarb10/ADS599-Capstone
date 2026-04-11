@@ -1,3 +1,17 @@
+-- Lab results from hosp.labevents for cohort patients.
+-- labevents has no ed_stay_id — joined via subject_id + time window.
+-- Window covers:
+--   - ED-only patients: ed_intime to ed_outtime
+--   - Admitted patients: ed_intime to first_icu_intime (if ICU transfer occurred) or dischtime
+-- Labs ordered after ICU transfer are excluded from the window entirely.
+-- order_time = charttime (when the order was placed / specimen collected)
+-- result_time = storetime (when the result was filed)
+-- ordered_location: 'ed' if order placed during ED window, 'ward' after ED discharge
+-- result_after_icu_transfer: True if result_time >= first_icu_intime — lab was ordered before
+--   ICU transfer but result came back after (retrospective label, not a state feature)
+-- hadm_id is NULL for ED-only patients, populated for admitted patients.
+-- NOTE: This query may take several minutes due to labevents table size.
+
 WITH cohort_subjects AS (
   SELECT
     ed_stay_id,

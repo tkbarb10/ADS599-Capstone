@@ -3,6 +3,8 @@ import math
 import re
 import pandas as pd
 
+from data_pipelines.feature_engineering.drug_classes import CLASS_TO_IDX
+
 logger = logging.getLogger(__name__)
 
 NAME_TO_CLASS = {
@@ -28,10 +30,6 @@ NAME_TO_CLASS = {
     r'normal saline|sodium chloride 0\.9|lactated|ringer|d5w|dextrose 5': 'IV Fluid',
     r'aspirin|clopidogrel|plavix|ticagrelor': 'Antiplatelet',
 }
-
-# Stable alphabetically-sorted vocabulary so action_idx is consistent across runs
-_CLASS_VOCAB = sorted(set(NAME_TO_CLASS.values()) | {'Other'})
-CLASS_TO_IDX = {c: i for i, c in enumerate(_CLASS_VOCAB)}
 
 
 def _classify(name: str) -> str:

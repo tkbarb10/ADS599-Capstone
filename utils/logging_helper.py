@@ -17,14 +17,14 @@ def setup_logging(log_file=log_file_path):
     # Console Handler (Stream)
     debug_handler = logging.StreamHandler()
     debug_handler.setLevel(logging.DEBUG)
-    console_fmt = logging.Formatter('%(levelname)s - [%(filename)s: %(lineno)s] - %(message)s')
+    console_fmt = logging.Formatter('\n%(levelname)s - [%(filename)s: %(lineno)s] - %(message)s')
     debug_handler.setFormatter(console_fmt)
 
     # File Handler
     validation_path = root / log_file
     validation_handler = logging.FileHandler(validation_path)
     validation_handler.setLevel(logging.INFO)
-    file_fmt = logging.Formatter('%(asctime)s - [%(filename)s: %(lineno)s] - %(levelname)s - \n%(message)s\n')
+    file_fmt = logging.Formatter('%(asctime)s - [%(filename)s: %(lineno)s] - %(levelname)s - %(name)s:\n%(message)s\n')
     validation_handler.setFormatter(file_fmt)
 
     # Add handlers

@@ -24,5 +24,27 @@ hugging_face:
     config_name: ecg_results
     split_name: full_ecg
     data_dir: ecg
+  medrecon:
+    config_name: medrecon
+    split_name: medrecon_full
+    data_dir: medrecon_data
+  radiology:
+    config_name: rad_results
+    split_name: rad_full
+    data_dir: rad_data
+  omr_height:
+    config_name: height
+    split_name: height_full
+    data_dir: height_data
+  omr_weight:
+    config_name: weight
+    split_name: weight_full
+    data_dir: weight_data
+  labs:
+    config_name: lab_results
+    split_name: labs_full
+    data_dir: labs
+
+sql_dir: sql_scripts
 
 time_block: 30
