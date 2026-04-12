@@ -1,6 +1,9 @@
 import logging
+import pickle
 import re
 import pandas as pd
+
+from utils.load_yaml_helper import get_artifacts_dir
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +87,25 @@ def merge_duplicate_hadm_id(df: pd.DataFrame) -> pd.DataFrame:
     logger.info(f"Max hadm_id count: {result['hadm_id'].value_counts().max()}  (expected 1)")
 
     return result
+
+
+def save_stay_id_remap(df: pd.DataFrame) -> None:
+    """
+    Build and save a stay_id_remap dict: {ed_stay_id_2 -> ed_stay_id}.
+    Used by downstream pipelines (e.g. vitals) to remap vitals from a
+    patient's second consecutive ED stay onto the merged first stay.
+    Saved to artifacts/stay_id_remap.pkl.
+    """
+    stay_id_remap = (
+        df[df['ed_stay_id_2'].notna()]
+        .set_index('ed_stay_id_2')['ed_stay_id']
+        .to_dict()
+    )
+    artifacts_dir = get_artifacts_dir()
+    out_path = artifacts_dir / "stay_id_remap.pkl"
+    with open(out_path, "wb") as f:
+        pickle.dump(stay_id_remap, f)
+    logger.info(f"Saved stay_id_remap with {len(stay_id_remap):,} entries to {out_path}")
 
 
 def simplify_race_column(df: pd.DataFrame) -> pd.DataFrame:

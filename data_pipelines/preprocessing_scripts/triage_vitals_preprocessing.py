@@ -1,10 +1,81 @@
+import logging
 import pandas as pd
 import numpy as np
 
-def null_triage_outliers(df):
+logger = logging.getLogger(__name__)
+
+
+def remap_stay_ids(df: pd.DataFrame, stay_id_remap: dict) -> pd.DataFrame:
+    """
+    Remap ed_stay_id_2 values in vitals back to their canonical ed_stay_id.
+    Patients with two consecutive ED stays under one hadm_id have their second
+    stay's vitals merged onto the first stay via the remap dict.
+    """
+    df = df.copy()
+    remapped = df['ed_stay_id'].map(stay_id_remap)
+    n = remapped.notna().sum()
+    df['ed_stay_id'] = remapped.fillna(df['ed_stay_id']).astype(df['ed_stay_id'].dtype)
+    logger.info(f"Remapped {n:,} vitals rows to canonical ed_stay_id")
+    return df
+
+
+def filter_to_cohort(df: pd.DataFrame, stay_ids: list) -> pd.DataFrame:
+    """Drop rows for ed_stay_ids not in the cohort."""
+    before = len(df)
+    df = df[df['ed_stay_id'].isin(stay_ids)].reset_index(drop=True)
+    logger.info(f"Filtered to cohort: dropped {before - len(df):,} rows, remaining {len(df):,}")
+    return df
+
+
+def fill_triage_charttimes(df: pd.DataFrame, cohort: pd.DataFrame) -> pd.DataFrame:
+    """
+    Triage rows have no charttime — fill with ed_intime from cohort.
+    Merges ed_intime, fillna on charttime for triage rows, then drops the helper col.
+    """
+    df = df.merge(cohort[['ed_stay_id', 'ed_intime']], on='ed_stay_id', how='left')
+    df['charttime'] = df['charttime'].fillna(df['ed_intime'])
+    df = df.drop(columns=['ed_intime'])
+    logger.info("Filled triage charttimes with ed_intime")
+    return df
+
+
+def drop_pre_admission_rows(df: pd.DataFrame, cohort: pd.DataFrame) -> pd.DataFrame:
+    """Drop vital rows with charttime < ed_intime (recorded before the ED visit started)."""
+    df = df.merge(cohort[['ed_stay_id', 'ed_intime']], on='ed_stay_id', how='left')
+    before = len(df)
+    df = df[df['charttime'] >= df['ed_intime']].reset_index(drop=True)
+    df = df.drop(columns=['ed_intime'])
+    logger.info(f"Dropped {before - len(df):,} rows with charttime < ed_intime")
+    return df
+
+
+def drop_same_time_vitals(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Drop vitals rows where charttime == ed_intime (time_since_last_min == 0 and source == 'vitals').
+    These are duplicate baseline readings already represented by the triage row.
+    Expected ~73K rows dropped.
+    """
+    drop_idx = df[(df['time_since_last_min'] == 0) & (df['source'] == 'vitals')].index
+    df = df.drop(index=drop_idx).reset_index(drop=True)
+    logger.info(f"Dropped {len(drop_idx):,} same-time vitals rows")
+    return df
+
+
+def clean_vital_sign_outliers(df):
     d = df.copy()
 
     # ── Temperature ──────────────────────────────────────────────────────────
+
+    # Values >900: assumed extra digit entered (e.g. 986 → 98.6)
+    d['temperature'] = d['temperature'].apply(lambda x: x / 10 if pd.notna(x) and x > 900 else x)
+
+    # Values 28–40: assumed recorded in Celsius, convert to Fahrenheit
+    d['temperature'] = d['temperature'].apply(
+        lambda x: round((x * 1.8) + 32, 1) if pd.notna(x) and 28 < x <= 40 else x
+        )
+    
+    # Values 5–10: assumed missing leading digit (e.g. 9.8 → 98)
+    d['temperature'] = d['temperature'].apply(lambda x: x * 10 if pd.notna(x) and 5 < x < 10 else x)
 
     # Assuming that temps outside of this range are mistakes in imputation or imputed as celsius so converting to null to drop
     d['temperature'] = d['temperature'].apply(lambda x: np.nan if pd.notna(x) and x > 115 or x < 70 else x)
@@ -44,7 +115,7 @@ def null_triage_outliers(df):
     return d
 
 
-def null_pain_column(df):
+def clean_pain_column(df):
     d = df.copy()
 
     # Normalize to lowercase string, strip punctuation artifacts (quotes, >, -, +)

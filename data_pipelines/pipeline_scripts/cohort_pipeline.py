@@ -10,6 +10,7 @@ from utils.load_yaml_helper import load_yaml
 from data_pipelines.preprocessing_scripts.cohort_preprocessing import (
     fix_label_mismatches,
     merge_duplicate_hadm_id,
+    save_stay_id_remap,
     simplify_race_column,
     fix_mismatched_times,
 )
@@ -49,6 +50,9 @@ if __name__ == "__main__":
 
     # 4. Collapse consecutive ED visits sharing a hadm_id
     df = merge_duplicate_hadm_id(df)
+
+    # 4a. Save stay_id_remap for downstream pipelines (e.g. vitals)
+    save_stay_id_remap(df)
 
     # 5. Simplify race column
     df = simplify_race_column(df)

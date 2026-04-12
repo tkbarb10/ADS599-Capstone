@@ -48,7 +48,12 @@ hugging_face:
     config_name: lab_results
     split_name: labs_full
     data_dir: labs
+  triage_vitals:
+    config_name: triage_vitals
+    split_name: triage_vitals_full
+    data_dir: triage_vitals_data
 
 sql_dir: sql_scripts
+artifacts_dir: artifacts
 
 time_block: 30
