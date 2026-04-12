@@ -40,7 +40,14 @@ def fill_triage_charttimes(df: pd.DataFrame, cohort: pd.DataFrame) -> pd.DataFra
 
 
 def drop_pre_admission_rows(df: pd.DataFrame, cohort: pd.DataFrame) -> pd.DataFrame:
-    """Drop vital rows with charttime < ed_intime (recorded before the ED visit started)."""
+    """
+    Drop vital rows with charttime < ed_intime (recorded before the ED visit started).
+
+    Uses >= (not >) so that triage rows are kept — their charttime was filled with
+    ed_intime by fill_triage_charttimes, so they sit exactly at the boundary.
+    Vitals rows that also land at charttime == ed_intime are handled separately by
+    drop_same_time_vitals (which filters on source == 'vitals').
+    """
     df = df.merge(cohort[['ed_stay_id', 'ed_intime']], on='ed_stay_id', how='left')
     before = len(df)
     df = df[df['charttime'] >= df['ed_intime']].reset_index(drop=True)
