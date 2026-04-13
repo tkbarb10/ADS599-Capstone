@@ -1,4 +1,5 @@
 # My files
+data_pipelines/combine_patient_state/_checkpoint.parquet
 notes.md
 test.ipynb
 .claude/

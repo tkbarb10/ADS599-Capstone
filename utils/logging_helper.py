@@ -33,6 +33,7 @@ def setup_logging(log_file=log_file_path):
 
     # Suppress noisy third-party loggers
     logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('httpcore').setLevel(logging.WARNING)
     logging.getLogger('datasets').setLevel(logging.WARNING)
     logging.getLogger('huggingface_hub').setLevel(logging.WARNING)
 

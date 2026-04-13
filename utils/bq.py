@@ -1,3 +1,5 @@
+"""Helper function to initiate a BigQuery client, run a given query, and return a pandas dataframe"""
+
 import os
 import warnings
 
@@ -8,7 +10,7 @@ warnings.filterwarnings(action='ignore', message="Your application has authentic
 
 
 def get_client():
-    """Load env vars and return a (client, project_name) tuple."""
+    """Load Project Name from env vars and return a (client, project_name) tuple."""
     load_dotenv()
     project = os.environ.get("PROJECT_NAME")
     if not project:

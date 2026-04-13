@@ -151,7 +151,7 @@ with st.sidebar:
 
     sel = st.dataframe(
         filtered.reset_index(drop=True),
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         on_select="rerun",
         selection_mode="single-row",
@@ -378,7 +378,7 @@ with tab2:
             )
             fig.update_xaxes(tickangle=-35, tickfont=dict(size=10))
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
             # Outcome summary
             oc1, oc2, oc3 = st.columns(3)
@@ -450,7 +450,7 @@ with tab2:
                     title=dict(text="P(ICU Transfer)", font=dict(size=15)),
                 ))
                 fig_gauge.update_layout(margin=dict(l=20, r=20, t=30, b=10), height=240)
-                st.plotly_chart(fig_gauge, use_container_width=True)
+                st.plotly_chart(fig_gauge, width='stretch')
 
             with metric_col:
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -649,5 +649,5 @@ with tab3:
             height=450,
             showlegend=False,
         )
-        st.plotly_chart(fig_wf, use_container_width=True)
+        st.plotly_chart(fig_wf, width='stretch')
         st.caption("Bar color: 🔴 increases risk of ICU transfer · 🟢 decreases risk · 🔵 baseline / total")

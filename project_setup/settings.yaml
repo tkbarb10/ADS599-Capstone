@@ -4,6 +4,7 @@ cohort_base:
 
 logging:
   path: validation.log
+  patient_combination_path: patient_combinations.log
 
 hugging_face:
   interim_data_repo: ADS599-Capstone/interim_data
@@ -52,6 +53,10 @@ hugging_face:
     config_name: triage_vitals
     split_name: triage_vitals_full
     data_dir: triage_vitals_data
+  full_patient_state:
+    config_name: full_patient_state
+    split_name: full_patient_state
+    data_dir: full_patient_state
 
 sql_dir: sql_scripts
 artifacts_dir: artifacts
