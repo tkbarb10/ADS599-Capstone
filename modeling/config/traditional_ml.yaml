@@ -1,0 +1,32 @@
+logistic_regression:
+  C:
+  penalty:
+  max_iter:
+  class_weight:
+  solver:
+
+random_forest:
+  n_estimators:
+  max_depth:
+  min_samples_split:
+  min_samples_leaf:
+  class_weight:
+  n_jobs:
+
+xgboost:
+  n_estimators:
+  max_depth:
+  learning_rate:
+  subsample:
+  colsample_bytree:
+  scale_pos_weight:
+  eval_metric:
+
+data:
+  scaling_cols:
+  target_col:
+  stay_id_col:
+
+artifacts:
+  model_dir:
+  scaler_path:

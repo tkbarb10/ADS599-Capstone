@@ -36,6 +36,7 @@ def setup_logging(log_file=log_file_path):
     logging.getLogger('httpcore').setLevel(logging.WARNING)
     logging.getLogger('datasets').setLevel(logging.WARNING)
     logging.getLogger('huggingface_hub').setLevel(logging.WARNING)
+    logging.getLogger('optuna').setLevel(logging.WARNING)
 
     return logger
 

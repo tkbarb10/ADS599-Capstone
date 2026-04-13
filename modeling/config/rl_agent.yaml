@@ -1,0 +1,35 @@
+network:
+  input_size:
+  hidden_sizes:
+  output_size:
+  dropout:
+
+training:
+  epochs:
+  batch_size:
+  learning_rate:
+  weight_decay:
+  gamma:
+  target_update_freq:
+  cql_weight:
+
+reward:
+  base_reward:
+  class_ratio:
+  time_penalty:
+
+replay_buffer:
+  capacity:
+  min_size:
+
+data:
+  scaling_cols:
+  state_cols:
+  action_col:
+  stay_id_col:
+  step_col:
+  p_icu_col:
+
+artifacts:
+  weights_path:
+  scaler_path:

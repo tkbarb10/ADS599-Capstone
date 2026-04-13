@@ -5,6 +5,9 @@ cohort_base:
 logging:
   path: validation.log
   patient_combination_path: patient_combinations.log
+  train_path: train.log
+  predict_path: predict.log
+  tune_path: tune.log
 
 hugging_face:
   interim_data_repo: ADS599-Capstone/interim_data
