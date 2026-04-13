@@ -1,32 +1,80 @@
+general:
+  random_state: 10
+
 logistic_regression:
-  C:
-  penalty:
-  max_iter:
-  class_weight:
-  solver:
+  C: 1.0
+  max_iter: 300
+  class_weight: balanced
+  solver: saga
+  l1_ratio: 0.0
+  random_state: 10
+  tol: .001
+  verbose: 1
 
 random_forest:
-  n_estimators:
-  max_depth:
-  min_samples_split:
-  min_samples_leaf:
-  class_weight:
-  n_jobs:
+  n_estimators: 500
+  max_depth: 30
+  min_samples_split: 5
+  min_samples_leaf: 2
+  max_features: log2
+  class_weight: balanced
+  random_state: 10
+  n_jobs: -1
+  verbose: 1
 
 xgboost:
-  n_estimators:
-  max_depth:
-  learning_rate:
-  subsample:
-  colsample_bytree:
+  objective: binary:logistic
+  eval_metric: logloss
+  n_estimators: 300
+  max_depth: 6
+  learning_rate: 0.1
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 3
+  gamma: 0
   scale_pos_weight:
-  eval_metric:
+  random_state: 10
+  n_jobs: -1
 
 data:
   scaling_cols:
-  target_col:
-  stay_id_col:
+    - anchor_age
+    - acuity
+    - current_temperature
+    - current_heartrate
+    - current_resprate
+    - current_o2sat
+    - current_sbp
+    - current_dbp
+    - current_pain
+    - current_pulse_pressure
+    - current_map
+    - height
+    - weight
+  non_train_cols:
+  - ed_stay_id
+  - time
+  - step_idx
+  - subject_id
+  - hadm_id
+  - stay_window_start
+  - stay_window_end
+  - admission_type
+  - cohort_label
+  - chiefcomplaint
+  - vitals_checked
+  - labs_ordered
+  - micro_ordered
+  - in_ed
+  - in_ward
+  - terminal_code
+  - total_length
+  target_col: terminal_event
+  stay_id_col: ed_stay_id
 
 artifacts:
-  model_dir:
-  scaler_path:
+  base_dir: modeling/artifacts
+  log_reg_dir: modeling/artifacts/log_reg
+  random_forest_dir: modeling/artifacts/random_forest
+  xgboost_dir: modeling/artifacts/xgboost
+  evaluation_dir: modeling/artifacts/evaluation

@@ -9,10 +9,8 @@ Usage:
 """
 
 import argparse
-import logging
 from pathlib import Path
 
-import optuna
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier

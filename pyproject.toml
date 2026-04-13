@@ -22,10 +22,11 @@ dependencies = [
     "plotly>=6.7.0",
     "streamlit>=1.56.0",
     "streamlit-aggrid>=1.2.1.post2",
+    "xgboost>=3.2.0",
 ]
 
 [tool.setuptools.packages.find]
-include = ["utils*", "data_pipelines*"]
+include = ["utils*", "data_pipelines*", "modeling*"]
 
 [tool.uv]
 package = true

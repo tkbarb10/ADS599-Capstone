@@ -8,6 +8,7 @@ logging:
   train_path: train.log
   predict_path: predict.log
   tune_path: tune.log
+  evaluate_path: evaluate.log
 
 hugging_face:
   interim_data_repo: ADS599-Capstone/interim_data
