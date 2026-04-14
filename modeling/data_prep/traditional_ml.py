@@ -6,10 +6,10 @@ of each ED stay, aggregates to one row per stay, encodes chief complaint,
 and returns a DataFrame ready for traditional ML training.
 
 Functions:
-  load_and_prep(hf_cfg, use_tfidf)  -- full data prep pipeline, one row per stay
-  tfidf_encode(train, test, val)    -- TF-IDF encoding for chief complaint (XGBoost)
-  training_split(df)                -- stratified train / test / validation split by subject_id
-  scaling(train, test, val)         -- StandardScaler fit on train, applied to all
+  load_and_prep(hf_cfg, use_tfidf) -- full data prep pipeline, one row per stay
+  tfidf_encode(train, test, val) -- TF-IDF encoding for chief complaint (XGBoost)
+  training_split(df) -- stratified train / test / validation split by subject_id
+  scaling(train, test, val) -- StandardScaler fit on train, applied to all
 """
 
 import logging
@@ -21,6 +21,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+from modeling.data_prep.columns import get_column_groups, NON_TRAIN_COLS
 from utils.load_yaml_helper import load_yaml
 
 config = load_yaml('modeling/config/traditional_ml.yaml')
@@ -70,8 +71,8 @@ def load_and_prep(hf_cfg: dict, use_tfidf: bool = False) -> pd.DataFrame:
     aggregates to one row per stay, and encodes chief complaint.
 
     Args:
-        hf_cfg:     The hugging_face section of settings.yaml.
-        use_tfidf:  If True, keep chiefcomplaint raw for downstream tfidf_encode()
+        hf_cfg: The hugging_face section of settings.yaml.
+        use_tfidf: If True, keep chiefcomplaint raw for downstream tfidf_encode()
                     (XGBoost). If False, apply CC category OHE and drop the column.
 
     Returns:
@@ -102,35 +103,22 @@ def load_and_prep(hf_cfg: dict, use_tfidf: bool = False) -> pd.DataFrame:
     # ------------------------------------------------------------------
     # Detect column groups for aggregation
     # ------------------------------------------------------------------
-    lab_suffixes = ('_Normal', '_Pending', '_Abnormal')
-    micro_suffixes = ('_Pending', '_Positive', '_Negative', '_Other')
+    groups = get_column_groups(df)
+    binary_max_cols = groups.binary_max_cols
 
-    lab_cols = [c for c in df.columns if c.endswith(lab_suffixes) and '-' in c]
-    micro_cols = [c for c in df.columns if c.endswith(micro_suffixes) and '-' not in c
-                  and not c.startswith('ecg_status') and not c.startswith('rad_status')]
-    recon_cols = [c for c in df.columns if c.startswith('recon_')]
-    dispensed_med_cols = df.loc[:, 'ACE Inhibitor':'Other'].columns.to_list()
-    rad_ecg_cols = [c for c in df.columns
-                    if c.startswith('ecg_status') or c.startswith('rad_status')]
-    action_cols = [c for c in ['vitals_checked', 'labs_ordered', 'micro_ordered',
-                                'ecg_ordered', 'rad_ordered', 'dispense_meds',
-                                'ward_transfer', 'in_ed', 'in_ward']
-                   if c in df.columns]
-    vital_cols = [c for c in df.columns if c.startswith('current_')]
-    rolling_cols = [c for c in df.columns if any(c.endswith(x) for x in
-                    ['_rolling1h', '_delta', '_rate_per_min'])]
-
-    binary_max_cols = lab_cols + micro_cols + recon_cols + dispensed_med_cols + rad_ecg_cols + action_cols
-
-    known = set(vital_cols + rolling_cols + binary_max_cols +
-                ['ed_stay_id', 'subject_id', 'hadm_id', 'time', 'step_idx',
-                 'stay_window_start', 'stay_window_end', 'cohort_label',
-                 'time_since_last_min', 'terminal_code', 'total_length'])
+    # Exclude temporal, action, location, and metadata columns from static_cols
+    # so they are not accidentally aggregated with 'first'.
+    known = (
+        set(groups.vitals) | set(groups.vital_change) | set(binary_max_cols)
+        | set(groups.action_flags) | set(groups.location_flags)
+        | NON_TRAIN_COLS | {'time_since_last_min'}
+    )
     static_cols = [c for c in df.columns if c not in known]
 
     logger.info(
-        f'Columns -- lab:{len(lab_cols)} micro:{len(micro_cols)} recon:{len(recon_cols)} '
-        f'disp_meds:{len(dispensed_med_cols)} vitals:{len(vital_cols)} static:{len(static_cols)}'
+        f'Columns -- lab:{len(groups.lab_ohe)} micro:{len(groups.micro_ohe)} '
+        f'recon:{len(groups.recon)} disp_meds:{len(groups.dispensed_meds)} '
+        f'vitals:{len(groups.vitals)} static:{len(static_cols)}'
     )
 
     # ------------------------------------------------------------------
@@ -159,7 +147,7 @@ def load_and_prep(hf_cfg: dict, use_tfidf: bool = False) -> pd.DataFrame:
     # Aggregate to one row per stay
     # ------------------------------------------------------------------
     agg_dict = {}
-    for c in vital_cols:
+    for c in groups.vitals:
         if c in df_1h.columns:
             agg_dict[c] = 'first'  # triage value
     for c in binary_max_cols:

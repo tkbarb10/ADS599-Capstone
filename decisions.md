@@ -1,16 +1,34 @@
 # Who our patient cohort is
 
+The cohort consists of adult ED patients from MIMIC-IV (Beth Israel Deaconess Medical Center) whose ED visit ended in one of two terminal outcomes: discharge directly from the emergency department, or transfer to an ICU. Patients admitted to a general hospital ward without ICU transfer are excluded -- the clinical focus of this project is early identification of ICU-level acuity from data available in the first hour of an ED visit. Patients who died in the ED are also excluded.
+
+Stays with an invalid or inverted stay window (see Stay Window Correction) and stays with fewer than two time steps after window filtering are also dropped.
+
+## Target Variable
+
+**Original design:** The project was initially designed as a multi-label action prediction problem, predicting the next clinical intervention among 7 discrete action types: lab order, culture order, administer medication, start medication, stop medication, rate change, and observe (no action). The intent was to train an offline RL agent to learn a treatment policy by imitating historical clinician behavior.
+
+**Revised design:** The multi-label approach was abandoned for two reasons:
+1. **Data sparsity:** Most action types occur infrequently within any given time window, producing a heavily zero-inflated target matrix where the majority of rows have no positive label for most action types.
+2. **Class imbalance:** The observe/no-action label dominated all others by a large margin, making it difficult for models to learn meaningful distinctions between rarer action types.
+
+The supervised learning target was revised to a binary outcome: **terminal status** -- discharge (0) vs. ICU transfer (1). This is derived from the `terminal_event` column in the cohort and encoded as `label` (0 = discharge, 1 = transfer_icu) in the modeling pipeline. Predicting terminal outcome from early ED data is a well-defined, clinically meaningful problem with a stable class distribution.
+
+The RL agent retains the action framework but uses terminal outcome as the primary reward signal rather than action imitation.
+
 # How we define and set up the state object
 
 ## Microbiology / Culture State Features
 
-Cultures are included in the state object as a single binary feature:
+**Original design:** Cultures were initially represented as a single binary feature -- `culture_ordered` (binary: was any culture ordered during this ER visit?). A time-decay feature on the order time was deferred to the feature engineering phase.
 
-- **`culture_ordered`** (binary): was any culture ordered during this ER visit? This is the primary real-time state signal — the agent knows a culture has been sent.
+**Current design:** Microbiology state is encoded as OHE with four binary status columns per specimen type, mirroring the lab OHE approach. The top 20 specimen types each receive four columns: `{spec_type}_Pending`, `{spec_type}_Positive`, `{spec_type}_Negative`, `{spec_type}_Other`. All remaining specimen types are bucketed under `OTHER`.
 
-A time-decay feature on the order time is deferred to the feature engineering phase.
+**Rationale for change from binary to OHE:**
+1. **Model performance:** The binary `culture_ordered` feature loses clinically relevant information about result status. A pending culture (unknown result) and a confirmed negative culture are meaningfully different patient states that the binary encoding collapses into the same value.
+2. **Label distance:** Encoding status as an ordinal (0 = not ordered, 1 = pending, 2 = positive, 3 = negative) implies equal semantic distances between adjacent values that do not exist. OHE eliminates this false distance assumption, allowing the model to treat each status independently.
 
-`culture_positive` (whether the culture grew an organism) is retained in the dataset as a **retrospective training label** and for post-analysis, but is NOT a real-time state feature — only ~2% of culture results were available before ED discharge, so it carries no meaningful signal during the visit.
+`culture_positive` is retained for post-analysis but is NOT a real-time state feature -- only ~2% of culture results were available before ED discharge.
 
 ### `culture_result` labeling
 
@@ -25,23 +43,63 @@ A `culture_result` column is derived from `org_name` and `comments` using a rege
 
 ## What the time step is
 
+Time steps are event-driven, not fixed-interval. A time step is created at each unique event time within a patient's stay window. Events that generate time steps include: vital sign charting, lab result availability, medication dispensing, microbiology culture orders, ECG results, and radiology results. The union of all event times within the stay window is sorted chronologically and assigned a sequential `step_idx` starting at 0.
+
+The `time` column records the absolute timestamp of each step. `time_since_last_min` records elapsed minutes since the previous step (0 at the first step of each stay). `stay_window_start` and `stay_window_end` define the bounds of the stay.
+
+State feature values carry forward from their last recorded value until updated -- if no new lab results arrive between steps 3 and 7, the lab state columns at step 7 still reflect the results from step 3. This represents the clinician's best current knowledge at each moment.
+
+Stays with only a single time step after window filtering are dropped -- a minimum of two steps is required for temporal features to be meaningful.
+
 ## Training Data Structure
 
-Each row is a `(visit_id, time_step)` tuple representing the full patient state and the action taken during that time step. The number of rows per visit varies based on visit length; padding happens in the model dataloader at training time, not in the stored dataset.
+The full patient state dataset (`full_patient_state`) contains one row per `(ed_stay_id, time)` pair, representing the complete patient state at each event-driven time step. Each row captures static patient attributes, current vital signs, and cumulative knowledge of all clinical events that have occurred up to that point in the stay.
 
-| visit_id | time_step | temperature | culture_ordered | lab_hematology_blood | lab_chemistry_blood | administer_medication | start_medication | stop_medication | rate_change | order_culture | order_lab | observe | reward |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| v001 | 1 | 38.2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
-| v001 | 2 | 38.5 | 0 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
-| v001 | 3 | 38.8 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
-| v001 | 4 | 39.1 | 1 | 1 | 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| v001 | 5 | 38.6 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | -1 |
-| v002 | 1 | 37.1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
-| v002 | 2 | 37.3 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... |
-| v002 | 48 | 37.0 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
+**Column groups:**
 
-Action columns are mutually exclusive — exactly one is `1` per time step. State columns reflect the patient's known state at the start of that time step; values carry forward from prior steps until updated.
+| Group | Description |
+|---|---|
+| Identifiers | `ed_stay_id`, `subject_id`, `hadm_id`, `time`, `step_idx`, `stay_window_start`, `stay_window_end` |
+| Static patient | `gender`, `anchor_age`, `race`, `acuity`, `chiefcomplaint`, `height`, `weight`, arrival transport OHE columns |
+| Current vitals | `current_temperature`, `current_heartrate`, `current_resprate`, `current_o2sat`, `current_sbp`, `current_dbp`, `current_pain`, `current_pulse_pressure`, `current_map` |
+| Temporal vitals | `_rolling1h`, `_delta`, `_rate_per_min` suffix variants for each vital column |
+| Lab state (OHE) | `{category}-{fluid}_Normal`, `{category}-{fluid}_Pending`, `{category}-{fluid}_Abnormal` per lab type (19 category × fluid combos = 57 columns) |
+| Micro state (OHE) | `{spec_type}_Pending`, `{spec_type}_Positive`, `{spec_type}_Negative`, `{spec_type}_Other` for top 20 specimen types + OTHER (84 columns) |
+| Dispensed medications | Binary flag per drug class (ACE Inhibitor through Other) |
+| Pre-arrival medications | `recon_*` binary flags from medication reconciliation at ED intake |
+| ECG / Radiology | OHE status columns for ECG and radiology result categories |
+| Action flags | `vitals_checked`, `labs_ordered`, `micro_ordered`, `ecg_ordered`, `rad_ordered`, `dispense_meds`, `ward_transfer`, `in_ed`, `in_ward` |
+| Target | `terminal_event` (string), `terminal_code` (0/1), `cohort_label`, `total_length` |
+
+State columns carry forward from their last updated value -- each row reflects cumulative knowledge at that point in the stay, not only events that occurred at that exact timestamp.
+
+## Dispensed Medications State
+
+Medications dispensed during the ED visit and hospital stay are represented as binary flags per drug class. The drug class taxonomy used is the dispensed medication categories from the `ed.pyxis` and `hosp.emar` tables, collapsed to the top-level drug class for each dispense event. Each column takes value `1` if any medication in that class has been dispensed up to the current time step, `0` otherwise.
+
+The column range runs from `ACE Inhibitor` through `Other`, covering all drug classes present in the cohort. The exact set of columns is derived from the data at pipeline time rather than hardcoded, to accommodate any changes in the underlying dispense records.
+
+## ECG and Radiology State
+
+ECG and radiology results are encoded as OHE status columns per result category. Each category gets a binary column for each possible status (e.g., normal, abnormal, pending). As with labs and microbiology, the OHE encoding was chosen over ordinal to avoid imposing false distances between result statuses.
+
+ECG columns are prefixed `ecg_status_` and radiology columns are prefixed `rad_status_`.
+
+## Chief Complaint Encoding
+
+Chief complaint (`chiefcomplaint`) is a free-text field recorded at triage. Two encoding strategies are used depending on the model:
+
+- **Logistic Regression and Random Forest:** The raw text is mapped to one of 19 clinical categories (e.g., `chest_pain`, `dyspnea`, `altered_mental_status`) using regex pattern matching, then OHE-encoded. The categories are ordered by specificity -- the first matching pattern wins. Complaints that match none of the 19 categories are assigned `other`.
+
+- **XGBoost:** TF-IDF encoding (top 50 terms, unigrams and bigrams, stop words removed) is applied after the train/test/validation split. The TF-IDF vectorizer is fit on the training set only and then applied to test and validation to prevent leakage.
+
+The regex category approach captures the clinical concepts most relevant to ED acuity decisions. TF-IDF is used for XGBoost to leverage its ability to handle high-dimensional sparse inputs more effectively than tree splits on OHE categories.
+
+## Pre-Arrival Medications (Medrecon)
+
+Pre-arrival medication reconciliation data from `ed.medrecon` is included as static binary flags per drug class (`recon_*` columns). This captures the patient's home medication list as documented at ED intake -- a strong signal of chronic conditions and baseline health status.
+
+Since medrecon is recorded once per visit (not time-varying), the same flags are broadcast to all time steps of each stay via a left merge on `ed_stay_id`.
 
 # Actions
 
@@ -95,21 +153,20 @@ The MIMIC-IV lab data includes a `category` field (e.g., "Hematology", "Chemistr
 
 ### Lab State Representation
 
-Each category × fluid combination maps to a **single 3-state ordinal feature** in the state vector:
+**Original design:** Each category × fluid combination was initially encoded as a single 3-state ordinal feature: `0` = not ordered, `1` = result normal, `2` = result abnormal. Worst-case aggregation governed the value within each group (any abnormal result set the feature to 2).
 
-- `0` = not ordered
-- `1` = ordered, result normal
-- `2` = ordered, result abnormal
+**Current design:** Each category × fluid combination is encoded as three separate binary OHE columns:
+- `{category}-{fluid}_Normal` -- results have returned and all are within normal limits
+- `{category}-{fluid}_Pending` -- an order exists but no result has been returned yet
+- `{category}-{fluid}_Abnormal` -- at least one result in the group is flagged as abnormal
 
-**Grouping within a time step:** When multiple individual lab labels belonging to the same category × fluid combination are resulted at the same time, they are collapsed into a single observation. If all results are normal, the feature is `1`. If any result within the group is abnormal, the feature takes the abnormal value (`2`) — the worst-case result governs. This ensures that a group with one flagged value is not incorrectly recorded as normal.
+**Rationale for change from ordinal to OHE:**
+1. **Model performance:** OHE produced better results in practice by allowing the model to learn independent weights for each status rather than assuming a single linear relationship across the ordinal scale.
+2. **Label distance:** Ordinal encoding implies equal semantic distances between adjacent values (0→1 = 1→2). This assumption does not hold -- "not ordered" to "pending" is not the same clinical distance as "normal" to "abnormal." OHE eliminates this false distance assumption.
 
-**Rationale for worst-case aggregation:** A clinician reviewing lab results acts on the most alarming result present. Encoding the abnormal flag when any component is abnormal mirrors this clinical decision-making process and avoids information loss that could misdirect the agent's learned policy.
+**Grouping logic (unchanged):** When multiple individual test results within the same category × fluid combination are available at the same time step, worst-case aggregation still governs the Abnormal flag -- if any result is flagged, `_Abnormal = 1`. If all results are normal, `_Normal = 1`. If an order exists with no result yet, `_Pending = 1`.
 
-**Limitation:** Worst-case aggregation loses information about *which specific test within the category × fluid group* was abnormal. In cases where a group has both critically abnormal and incidentally abnormal values, the agent cannot distinguish these scenarios from the state alone. This is a known limitation of the grouped representation.
-
-**Time decay:** A decay variable is included in the state for each category × fluid action to represent how stale the most recent result is. Results observed long ago carry less clinical relevance than recent ones, and the decay term allows the agent to learn that old normal results should not preclude re-ordering if enough time has passed.
-
-**Most recent result update:** At each time step, the action and result features reflect only the most recent observation for that category × fluid combination — prior results are not accumulated. This keeps the state vector fixed-size and ensures the agent is always acting on the current best information.
+**Most recent result update:** At each time step the OHE columns reflect only the most recent status for that combination -- prior results are not accumulated. This keeps the state vector fixed-size and ensures the agent is always acting on the current best information.
 
 # Outlier Handling for Stay Length
 
@@ -264,9 +321,9 @@ After imputation, the following features are derived from the numeric vital colu
 | Feature | Formula | Notes |
 |---|---|---|
 | `time_since_last_hrs` | `diff(charttime)` in hours | Hours since previous reading within the stay. First reading of each stay is NaN. Also a feature in its own right — frequent readings signal closer monitoring. |
-| `{col}_rolling2h` | 2-hour trailing rolling mean | Time-based window (not row-based) so irregular sampling is handled correctly. Computed per stay using `set_index('charttime').rolling('2h')`. |
+| `{col}_rolling1h` | 1-hour trailing rolling mean | Time-based window (not row-based) so irregular sampling is handled correctly. Computed per stay using `set_index('charttime').rolling('1h')`. |
 | `{col}_delta` | `diff()` of column values | 1-step change from previous reading. First reading of each stay is NaN. |
-| `{col}_rate` | `{col}_delta / time_since_last_hrs` | Rate of change in units per hour. Normalises delta for the time gap between readings. |
+| `{col}_rate_per_min` | `{col}_delta / time_since_last_min` | Rate of change per minute. Normalises delta for the time gap between readings. |
 
 ### Blood pressure derived features
 
@@ -291,6 +348,76 @@ The raw lab events table contains one row per individual lab test result, meanin
 
 **Example:** A patient with 24 Hematology/Blood labs ordered at the same timestamp collapses to a single row. If any of those 24 came back abnormal, `abnormal=True`.
 
+# full_patient_state Dataset
+
+The `full_patient_state` dataset is the output of the `data_pipelines/combine_patient_state/` pipeline and is the primary input to all modeling work. It is stored on HuggingFace under `ADS599-Capstone/modeling_data` (config: `full_patient_state`, split: `full_patient_state`).
+
+**Build pipeline:** `python -m data_pipelines.combine_patient_state.main`
+
+The pipeline loads all intermediate feature datasets from HuggingFace (`interim_data` repo), joins them on `ed_stay_id` at each event time step, and produces a single wide DataFrame. The major steps are:
+
+1. Load cohort and build `terminal_event` label
+2. Collect all event timestamps and build the step index
+3. Drop out-of-window rows and single-step stays
+4. Snap vitals to each time step, compute `time_since_last_min` and rolling/delta/rate features
+5. Expand lab OHE columns (`_Normal`, `_Pending`, `_Abnormal` per category × fluid)
+6. Expand microbiology OHE columns (`_Pending`, `_Positive`, `_Negative`, `_Other` per specimen type)
+7. Expand dispensed medication flags by drug class
+8. Snap ECG and radiology OHE status columns
+9. Add location flags, height/weight, and medrecon flags
+10. Add derived features (arrival OHE, acuity ffill, total length, drop non-feature columns)
+11. Run validation checks and push to HuggingFace
+
+A checkpoint file (`_checkpoint.parquet`) is saved after each major step so a failed run can resume from the last completed step rather than restarting from scratch.
+
+# Modeling Approach
+
+Three complementary modeling approaches are used, each operating on different representations of the same underlying data.
+
+## Traditional ML (Logistic Regression, Random Forest, XGBoost)
+
+These models operate on a **one-row-per-stay** aggregation of `full_patient_state`, using only data from the first 60 minutes of each ED visit. The aggregation uses triage-time vital values (`first` within the window) and worst-case flags for binary event columns (`max` within the window). This produces a single feature vector per stay suitable for standard supervised learning.
+
+**Data preparation:** `modeling/data_prep/traditional_ml.py`
+
+**Train/test/validation split:** 80/10/10, split by `subject_id` (not by `ed_stay_id`) to prevent data leakage across multiple visits by the same patient. Stratified on the binary label to preserve class balance across splits.
+
+**Scaling:** `StandardScaler` fit on the training set, applied to test and validation. Scaling columns are defined in `modeling/config/traditional_ml.yaml`.
+
+**Chief complaint:** OHE category encoding for Logistic Regression and Random Forest; TF-IDF (top 50 terms, fit on train only) for XGBoost.
+
+**Class imbalance:** Logistic Regression and Random Forest use `class_weight='balanced'`. XGBoost uses `scale_pos_weight` calculated from the training set class ratio (negative count / positive count).
+
+**Scripts:** `modeling/traditional_ml/{logistic_regression,random_forest,xgboost_train}.py`
+
+**Artifacts:** Saved to `modeling/artifacts/{log_reg,random_forest,xgboost}/` -- model pickle, scaler pickle, test and validation parquets.
+
+## LSTM
+
+The LSTM operates on the full event-driven time series from `full_patient_state`, using variable-length sequences per stay. This allows the model to capture temporal patterns in vital sign trends, lab result timing, and treatment sequences that the one-row aggregation discards.
+
+Padding and masking are handled in the model dataloader at training time -- the stored dataset is not padded.
+
+## Offline RL Agent
+
+The RL agent learns a treatment policy from historical clinician behavior using offline RL (no environment interaction). The agent observes the full patient state at each time step and selects from the action space defined in the Actions section. The primary reward signal is terminal outcome (discharge = positive, ICU transfer = negative), with intermediate step rewards under development.
+
 # Rewards
 
 ## Estimating values of rewards
+
+The reward function is designed to provide both a terminal signal (end-of-stay outcome) and intermediate per-step shaping signals.
+
+**Terminal reward:**
+- Discharge: `+1` -- the patient was successfully managed and released from the ED
+- ICU transfer: `-1` -- the patient deteriorated to a level requiring intensive care
+
+The terminal reward reflects the binary classification target and aligns the RL agent's objective with the supervised learning task.
+
+**Intermediate rewards (under development):**
+Per-step reward shaping is under active design. Candidate approaches include:
+- Small negative reward per step to encourage efficiency (penalize unnecessarily prolonged stays)
+- Penalty for ordering redundant or low-yield tests (e.g., re-ordering the same lab when the prior result was normal and no clinical change occurred)
+- Penalty for medication actions inconsistent with the patient's current vital state
+
+The specific values and formulas for intermediate rewards will be documented here once finalized through experimentation.
