@@ -71,6 +71,7 @@ def load_and_prep_lstm(hf_cfg: dict) -> tuple[pd.DataFrame, List[str]]:
     df[binary_cols] = df[binary_cols].astype(np.int8)
     float_cols = [c for c in df.select_dtypes('float64').columns if c not in binary_cols]
     df[float_cols] = df[float_cols].astype(np.float32)
+    df = df.copy()  # defragment after repeated column-level dtype changes
     logger.info(f'Downcast {len(binary_cols)} binary cols to int8, {len(float_cols)} float cols to float32')
 
     df['label'] = df['terminal_event'].map(TERMINAL_MAP)
