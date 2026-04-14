@@ -164,41 +164,46 @@ def pad_data(
     val: pd.DataFrame,
     state_cols: List[str],
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
+    import gc
+    print("Padding train loader...")
+    # -- Train ------------------------------------------------------------
     s_train, y_train, train_len = pad_stays(df=train, state_cols=state_cols)
-    s_train = torch.tensor(s_train)
-    y_train = torch.tensor(y_train)
-    train_len = torch.tensor(train_len)
-
-    s_test, y_test, test_len = pad_stays(df=test, state_cols=state_cols)
-    s_test = torch.tensor(s_test)
-    y_test = torch.tensor(y_test)
-    test_len = torch.tensor(test_len)
-
-    s_val, y_val, val_len = pad_stays(df=val, state_cols=state_cols)
-    s_val = torch.tensor(s_val)
-    y_val = torch.tensor(y_val)
-    val_len = torch.tensor(val_len)
-
+    y_train_t = torch.tensor(y_train)
+    state_dim = s_train.shape[2]
+    n_train = s_train.shape[0]
     train_loader = DataLoader(
-        TensorDataset(s_train, y_train, train_len),
+        TensorDataset(torch.tensor(s_train), y_train_t, torch.tensor(train_len)),
         batch_size=batch_size, shuffle=True,
         generator=torch.Generator().manual_seed(random_state),
     )
+    del s_train, y_train, train_len
+    gc.collect()
+    print("Train loader created and intermediate file deleted, processing test loader...")
+    # -- Test -------------------------------------------------------------
+    s_test, y_test, test_len = pad_stays(df=test, state_cols=state_cols)
+    y_test_t = torch.tensor(y_test)
+    n_test = s_test.shape[0]
     test_loader = DataLoader(
-        TensorDataset(s_test, y_test, test_len),
+        TensorDataset(torch.tensor(s_test), y_test_t, torch.tensor(test_len)),
         batch_size=batch_size, shuffle=False,
     )
-    val_loader = DataLoader(
-        TensorDataset(s_val, y_val, val_len),
-        batch_size=batch_size, shuffle=False,
-    )
+    del s_test, y_test, test_len
+    gc.collect()
 
-    logger.info(f'State dim:   {s_train.shape[2]}')
-    logger.info(f'Train stays: {s_train.shape[0]:,}')
-    logger.info(f'Test stays:  {s_test.shape[0]:,}')
-    logger.info(f'Val stays:   {s_val.shape[0]:,}')
-    logger.info(f'Train class: discharge={(y_train==0).sum():,}  icu={(y_train==1).sum():,}')
-    logger.info(f'Test  class: discharge={(y_test==0).sum():,}  icu={(y_test==1).sum():,}')
-    logger.info(f'Val   class: discharge={(y_val==0).sum():,}  icu={(y_val==1).sum():,}')
+    # -- Val --------------------------------------------------------------
+    s_val, y_val, val_len = pad_stays(df=val, state_cols=state_cols)
+    y_val_t = torch.tensor(y_val)
+    n_val = s_val.shape[0]
+    val_loader = DataLoader(
+        TensorDataset(torch.tensor(s_val), y_val_t, torch.tensor(val_len)),
+        batch_size=batch_size, shuffle=False,
+    )
+    del s_val, y_val, val_len
+    gc.collect()
+
+    logger.info(f'State dim:   {state_dim}')
+    logger.info(f'Train stays: {n_train:,}  discharge={(y_train_t==0).sum():,}  icu={(y_train_t==1).sum():,}')
+    logger.info(f'Test stays:  {n_test:,}   discharge={(y_test_t==0).sum():,}  icu={(y_test_t==1).sum():,}')
+    logger.info(f'Val stays:   {n_val:,}    discharge={(y_val_t==0).sum():,}  icu={(y_val_t==1).sum():,}')
 
     return train_loader, test_loader, val_loader

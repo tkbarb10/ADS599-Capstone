@@ -118,6 +118,8 @@ def prep_data(hf_cfg: dict, device: str) -> tuple:
     scaled_train, scaled_test, scaled_val, scaler = scaling(
         train=df_train, test=df_test, val=df_val
     )
+
+    logger.info("Padding data, this might take a few min...")
     pad_train, pad_test, pad_val = pad_data(
         train=scaled_train, test=scaled_test, val=scaled_val, state_cols=state_cols
     )
