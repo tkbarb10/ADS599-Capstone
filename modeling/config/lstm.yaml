@@ -1,16 +1,22 @@
 random_state: 10
 model:
-  input_size:
+  input_size: 236 # can also get this dynamically during training
   hidden_size: 256
   num_layers: 2
   dropout: 0.2
+  batch_first: True
+  num_classes: 2
 
 training:
   epochs: 5
   batch_size: 16
-  learning_rate: 1e-5
+  learning_rate: 1e-4
   weight_decay: 0.1
-  class_weights:
+  optimizer: adamw
+  training_update: 500
+  # Early Stopping Variables
+  patience: 3
+  tol: .001
 
 data:
   pad_length: 100 # This is the max number of actions taken in a patients stay.  Over 3k records have more than 100
@@ -32,8 +38,8 @@ data:
   target_col: terminal_event
   stay_id_col: ed_stay_id
   step_col:
-  test_size: 0.2
+  train_size: 0.8
+  batch_size: 16
 
 artifacts:
-  weights_path:
-  scaler_path:
+  dir: modeling/artifacts/lstm

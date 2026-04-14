@@ -19,12 +19,11 @@ from typing import List
 import pandas as pd
 
 # Pure identifiers, timestamps, and target columns -- never training features.
-# Note: time_since_last_min is NOT here; it is a real feature for LSTM and RL.
 # traditional_ml.py excludes it separately via the aggregation skip set.
 NON_TRAIN_COLS: frozenset = frozenset({
     'ed_stay_id', 'subject_id', 'hadm_id', 'time', 'step_idx',
     'stay_window_start', 'stay_window_end', 'cohort_label',
-    'terminal_code', 'terminal_event', 'total_length',
+    'terminal_code', 'terminal_event', 'total_length', 'admission_type'
 })
 
 # vitals_checked, labs_ordered, micro_ordered -- part of the RL action tuple,
