@@ -103,10 +103,16 @@ def prep_data(hf_cfg: dict, device: str) -> tuple:
         df_test     -- raw test DataFrame for building predictions file
         class_weight -- weighted tensor for CrossEntropyLoss
     """
+    import gc
+
     df, state_cols = load_and_prep_lstm(hf_cfg=hf_cfg)
     modeling_df = remove_outlier_stays(df=df)
+    del df
+    gc.collect()
 
     df_train, df_test, df_val = split_data(modeling_df)
+    del modeling_df
+    gc.collect()
 
     stay_labels_train = df_train.drop_duplicates("ed_stay_id")["label"].values
     labels_all = torch.tensor(stay_labels_train)
@@ -115,14 +121,19 @@ def prep_data(hf_cfg: dict, device: str) -> tuple:
     class_weight = torch.tensor([1.0, (n_discharge / n_icu).item()]).to(device)
     logger.info(f"Class weights: discharge={class_weight[0]:.2f}  icu={class_weight[1]:.2f}")
 
+    # scaling modifies in place -- scaled_* and df_* are the same objects
     scaled_train, scaled_test, scaled_val, scaler = scaling(
         train=df_train, test=df_test, val=df_val
     )
+    del df_train, df_val  # df_test kept for save_artifacts; scaled_test IS df_test
+    gc.collect()
 
     logger.info("Padding data, this might take a few min...")
     pad_train, pad_test, pad_val = pad_data(
         train=scaled_train, test=scaled_test, val=scaled_val, state_cols=state_cols
     )
+    del scaled_train, scaled_val  # scaled_test kept (same object as df_test)
+    gc.collect()
 
     return pad_train, pad_val, pad_test, scaler, df_test, class_weight
 

@@ -62,6 +62,17 @@ def load_and_prep_lstm(hf_cfg: dict) -> tuple[pd.DataFrame, List[str]]:
     state_cols = groups.state_cols
     logger.info(f'State cols: {len(state_cols)}')
 
+    # Downcast to reduce memory: binary OHE cols to int8, continuous to float32.
+    # pad_stays casts everything to float32 before building tensors anyway.
+    binary_cols = [c for c in (
+        groups.lab_ohe + groups.micro_ohe + groups.status_ohe
+        + groups.dispensed_meds + groups.recon + groups.arrival + groups.missing
+    ) if c in df.columns]
+    df[binary_cols] = df[binary_cols].astype(np.int8)
+    float_cols = [c for c in df.select_dtypes('float64').columns if c not in binary_cols]
+    df[float_cols] = df[float_cols].astype(np.float32)
+    logger.info(f'Downcast {len(binary_cols)} binary cols to int8, {len(float_cols)} float cols to float32')
+
     df['label'] = df['terminal_event'].map(TERMINAL_MAP)
 
     return df, state_cols
@@ -132,9 +143,6 @@ def scaling(
     """Fit StandardScaler on train rows only, transform all three splits."""
     cols = [c for c in scaling_cols if c in train.columns]
     scaler = StandardScaler()
-    train = train.copy()
-    test = test.copy()
-    val = val.copy()
     train[cols] = scaler.fit_transform(train[cols])
     test[cols] = scaler.transform(test[cols])
     val[cols] = scaler.transform(val[cols])
