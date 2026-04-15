@@ -38,6 +38,7 @@ from modeling.lstm.model import LSTMSequenceModel
 from modeling.lstm.training_eval_loops import training_loop, evaluation_loop
 from utils.load_yaml_helper import load_yaml
 from utils.logging_helper import setup_logging
+from typing import Optional
 
 settings = load_yaml("project_setup/settings.yaml")
 cfg = load_yaml("modeling/config/lstm.yaml")
@@ -82,30 +83,37 @@ device = (
     if torch.accelerator.is_available()
     else "cpu"
 )
-
+logger.info(f"Using device {device}")
 
 # =============================================================================
 # Pipeline functions
 # =============================================================================
 
-def prep_data(hf_cfg: dict, device: str) -> tuple:
+def prep_data(hf_cfg: dict, device: str, sample_size: Optional[float]=None) -> tuple:
     """
     Load, filter, split, compute class weights, scale, and pad data.
 
     Args:
         hf_cfg: hugging_face section of settings.yaml.
         device: torch device string for placing class_weight tensor.
+        sample_size: optional argument to add to only train on a fraction of the data.  Useful if working with limited RAM
 
     Returns:
         (pad_train, pad_val, pad_test, scaler, df_test, class_weight)
-        pad_*       -- DataLoaders ready for the model
-        scaler      -- fitted StandardScaler (saved as artifact)
-        df_test     -- raw test DataFrame for building predictions file
+        pad_*  -- DataLoaders ready for the model
+        scaler -- fitted StandardScaler (saved as artifact)
+        df_test -- raw test DataFrame for building predictions file
         class_weight -- weighted tensor for CrossEntropyLoss
     """
     import gc
 
     df, state_cols = load_and_prep_lstm(hf_cfg=hf_cfg)
+
+    if sample_size is not None and not (0 < sample_size < 1):
+        raise ValueError(f"sample_size must be a float between 0 and 1, got {sample_size}")
+    if sample_size is not None:
+        df = df.sample(frac=sample_size, random_state=random_state)
+
     modeling_df = remove_outlier_stays(df=df)
     del df
     gc.collect()
@@ -146,21 +154,21 @@ def train_model(
     and run final evaluation on the held-out test set.
 
     Args:
-        pad_train:    Training DataLoader.
-        pad_val:      Validation DataLoader (used for early stopping).
-        pad_test:     Test DataLoader (evaluated once after training).
+        pad_train: Training DataLoader.
+        pad_val: Validation DataLoader (used for early stopping).
+        pad_test: Test DataLoader (evaluated once after training).
         class_weight: Tensor of per-class weights for CrossEntropyLoss.
-        device:       torch device string.
+        device: torch device string.
 
     Returns:
         (seq_model, train_losses, eval_losses, test_preds, test_true)
-        seq_model    -- trained model with best weights loaded
+        seq_model  -- trained model with best weights loaded
         train_losses -- list of average training loss per epoch
-        eval_losses  -- list of average val loss per epoch
-        test_preds   -- (N, 2) softmax tensor from held-out test set
-        test_true    -- (N,) integer label tensor from held-out test set
+        eval_losses -- list of average val loss per epoch
+        test_preds -- (N, 2) softmax tensor from held-out test set
+        test_true -- (N,) integer label tensor from held-out test set
     """
-    seq_model = LSTMSequenceModel().to(device)
+    seq_model = torch.compile(LSTMSequenceModel().to(device))
     optimizer = optimizer_options[optimizer_key](
         seq_model.parameters(), lr=learning_rate, weight_decay=weight_decay
     )
@@ -293,8 +301,13 @@ def save_artifacts(
 # =============================================================================
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Training loop to train a LSTM classifier")
+    parser.add_argument(name="--sample_size", required=False, type=float)
+    args = parser.parse_args()
+
     logger.info(f"Using device: {device}")
-    pad_train, pad_val, pad_test, scaler, df_test, class_weight = prep_data(hf_cfg, device)
+    pad_train, pad_val, pad_test, scaler, df_test, class_weight = prep_data(hf_cfg, device, sample_size=args.sample_size)
     seq_model, train_losses, eval_losses, test_preds = train_model(
         pad_train, pad_val, pad_test, class_weight, device
     )

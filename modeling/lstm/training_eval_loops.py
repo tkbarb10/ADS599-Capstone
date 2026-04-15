@@ -11,15 +11,15 @@ import torch
 
 def training_loop(train_data_loader, model, optimizer, loss_fn, device, training_update):
     """
-    Run one full training epoch over train_data_loader.
+    Run one full training epoch over train_data_loader.  Uses grad_scaler to run the forward pass in float16, speeds up training time
 
     Args:
         train_data_loader: DataLoader yielding (X, y, lengths) batches.
-        model:             LSTM model in training mode.
-        optimizer:         Configured optimizer instance.
-        loss_fn:           Loss function (e.g. CrossEntropyLoss with class weights).
-        device:            "cuda", "mps", or "cpu".
-        training_update:   Print a progress line every N batches.
+        model: LSTM model in training mode.
+        optimizer: Configured optimizer instance.
+        loss_fn: Loss function (e.g. CrossEntropyLoss with class weights).
+        device: "cuda", "mps", or "cpu".
+        training_update: Print a progress line every N batches.
 
     Returns:
         Average training loss over all batches.
@@ -28,13 +28,16 @@ def training_loop(train_data_loader, model, optimizer, loss_fn, device, training
     total_loss = 0
 
     model.train()
+    scaler = torch.amp.GradScaler(enabled=(device == 'cuda')) # type: ignore
     for batch, (X, y, lengths) in enumerate(train_data_loader):
         X, y = X.to(device), y.to(device)  # leave lengths on CPU for pack_padded_sequence
         optimizer.zero_grad()
-        preds = model(X, lengths)
-        loss = loss_fn(preds, y)
-        loss.backward()
-        optimizer.step()
+        with torch.autocast(device_type=device, enabled=(device == 'cuda')):
+            preds = model(X, lengths)
+            loss = loss_fn(preds, y)
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
         total_loss += loss.item()
 
         if batch % training_update == 0:
@@ -49,9 +52,9 @@ def evaluation_loop(test_data_loader, model, loss_fn, device):
 
     Args:
         test_data_loader: DataLoader yielding (X, y, lengths) batches.
-        model:            LSTM model.
-        loss_fn:          Loss function (same as training, for comparable loss values).
-        device:           "cuda", "mps", or "cpu".
+        model: LSTM model.
+        loss_fn: Loss function (same as training, for comparable loss values).
+        device: "cuda", "mps", or "cpu".
 
     Returns:
         Tuple of (avg_loss, predictions, true_labels) where predictions is a
@@ -66,10 +69,11 @@ def evaluation_loop(test_data_loader, model, loss_fn, device):
     with torch.no_grad():
         for X, y, lengths in test_data_loader:
             X, y = X.to(device), y.to(device)  # leave lengths on CPU
-            preds = model(X, lengths)  # (batch_size, num_classes) logits
-            loss = loss_fn(preds, y)
+            with torch.autocast(device_type=device, enabled=(device == 'cuda')):
+                preds = model(X, lengths)  # (batch_size, num_classes) logits
+                loss = loss_fn(preds, y)
             test_loss += loss.item()
-            all_preds.append(torch.softmax(preds, dim=-1).cpu())
+            all_preds.append(torch.softmax(preds.float(), dim=-1).cpu())
             true_labels.append(y.cpu())
 
     test_loss /= num_batches

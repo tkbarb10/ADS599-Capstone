@@ -5,12 +5,12 @@ Loads full_patient_state from HuggingFace, scales features, and builds
 padded sequences for LSTM training and inference.
 
 Functions:
-  load_and_prep_lstm(hf_cfg)         -- load + encode, return (df, state_cols)
-  remove_outlier_stays(df)           -- drop stays exceeding pad_length or stay_length
-  split_data(df)                     -- stratified 80/10/10 train/test/val by subject_id
-  scaling(train, test, val)          -- StandardScaler fit on train, applied to all three
-  pad_stays(df, state_cols)          -- zero-pad sequences to pad_length, return arrays
-  pad_data(train, test, val, ...)    -- convert splits to DataLoaders
+  load_and_prep_lstm(hf_cfg) -- load + encode, return (df, state_cols)
+  remove_outlier_stays(df) -- drop stays exceeding pad_length or stay_length
+  split_data(df) -- stratified 80/10/10 train/test/val by subject_id
+  scaling(train, test, val) -- StandardScaler fit on train, applied to all three
+  pad_stays(df, state_cols) -- zero-pad sequences to pad_length, return arrays
+  pad_data(train, test, val, ...) -- convert splits to DataLoaders
 """
 
 import logging
@@ -184,6 +184,7 @@ def pad_data(
         TensorDataset(torch.tensor(s_train), y_train_t, torch.tensor(train_len)),
         batch_size=batch_size, shuffle=True,
         generator=torch.Generator().manual_seed(random_state),
+        pin_memory=True
     )
     del s_train, y_train, train_len
     gc.collect()
