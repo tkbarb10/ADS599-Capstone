@@ -14,7 +14,7 @@ Usage:
 """
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Literal
 
 import pandas as pd
 
@@ -40,7 +40,8 @@ class ColumnGroups:
     vital_change: List[str]     # _rolling1h, _delta, _rate_per_min -- temporal derivatives
     lab_ohe: List[str]          # {category}-{fluid}_Normal/Pending/Abnormal
     micro_ohe: List[str]        # {spec_type}_Pending/Positive/Negative/Other
-    status_ohe: List[str]       # ecg_status_* and rad_status_*
+    ecg_ohe: List[str]       # ecg_status_* and rad_status_*
+    rad_ohe: List[str]
     dispensed_meds: List[str]   # ACE Inhibitor through Other (by drug class)
     recon: List[str]            # recon_* -- pre-arrival medication reconciliation flags
     arrival: List[str]          # arrival_* -- OHE arrival transport columns
@@ -56,7 +57,7 @@ class ColumnGroups:
         """
         return (
             self.lab_ohe + self.micro_ohe + self.recon
-            + self.dispensed_meds + self.status_ohe
+            + self.dispensed_meds + self.ecg_ohe + self.rad_ohe
         )
 
     @property
@@ -75,10 +76,19 @@ class ColumnGroups:
             + self.vital_change
             + self.lab_ohe
             + self.micro_ohe
-            + self.status_ohe
+            + self.ecg_ohe
+            + self.rad_ohe
             + self.arrival
             + self.missing
         )
+    
+    @property
+    def action_cols(self) -> List[str]:
+        return self.action_flags
+    
+    @property
+    def terminal_row(self) -> str:
+        return 'terminal_code'
 
 
 def get_column_groups(df: pd.DataFrame) -> ColumnGroups:
@@ -102,9 +112,11 @@ def get_column_groups(df: pd.DataFrame) -> ColumnGroups:
         and not c.startswith('ecg_status')
         and not c.startswith('rad_status')
     ]
-    status_ohe = [
-        c for c in df.columns
-        if c.startswith('ecg_status') or c.startswith('rad_status')
+    ecg_ohe = [
+        c for c in df.columns if c.startswith('ecg_status')
+        ]
+    rad_ohe = [
+        c for c in df.columns if c.startswith("rad_status")
     ]
     vitals = [c for c in df.columns if c.startswith('current_')]
     vital_change = [
@@ -123,7 +135,8 @@ def get_column_groups(df: pd.DataFrame) -> ColumnGroups:
         vital_change=vital_change,
         lab_ohe=lab_ohe,
         micro_ohe=micro_ohe,
-        status_ohe=status_ohe,
+        ecg_ohe=ecg_ohe,
+        rad_ohe=rad_ohe,
         dispensed_meds=dispensed_meds,
         recon=recon,
         arrival=arrival,
@@ -131,3 +144,14 @@ def get_column_groups(df: pd.DataFrame) -> ColumnGroups:
         action_flags=action_flags,
         location_flags=location_flags,
     )
+
+def create_action_cols(df: pd.DataFrame, cols: list[str], suffix: Literal['ecg', 'rad', 'meds']):
+    """Columns in full patient state for meds, ecg and rad are results only.  This function creates indicator columns for when those orders were placed (the time step before)"""
+    result_onset = (
+        df.groupby('ed_stay_id')[cols]
+        .diff()
+        .gt(0)
+        .any(axis=1)
+    )
+    df[f'{suffix}_ordered'] = result_onset.shift(-1, fill_value=False).astype(int)
+    return df

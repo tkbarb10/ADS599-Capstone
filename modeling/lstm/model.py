@@ -2,15 +2,15 @@
 modeling/lstm/model.py
 
 LSTM model definitions:
-  - SequenceModeling      -- final-state classifier, returns (B, 2) logits
-  - SbsSequenceModeling   -- per-timestep classifier, returns (B, T, 2) logits
-  - StepwiseWrapper       -- wraps SbsSequenceModeling for inference, exposes p_icu
+  - SequenceModeling -- final-state classifier, returns (B, 2) logits
+  - SbsSequenceModeling -- per-timestep classifier, returns (B, T, 2) logits
+  - StepwiseWrapper -- wraps SbsSequenceModeling for inference, exposes p_icu
 """
 
 import logging
 
-import torch
 import torch.nn as nn
+from huggingface_hub import PyTorchModelHubMixin
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from utils.load_yaml_helper import load_yaml
@@ -28,7 +28,7 @@ num_classes = model_config['num_classes']
 logger = logging.getLogger(__name__)
 
 
-class LSTMSequenceModel(nn.Module):
+class LSTMSequenceModel(nn.Module, PyTorchModelHubMixin):
     def __init__(self):
         super().__init__()
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, 
@@ -43,4 +43,17 @@ class LSTMSequenceModel(nn.Module):
         # take the last layer's hidden state for classification
         out = self.fc(self.dropout(h_n[-1]))
         return out
+
+# Wrap the above model to return the predictions at each step instead of just the final layer
+class StepByStepWrapper(nn.Module):
+    def __init__(self, base_model):
+        super().__init__()
+        self.lstm = base_model.lstm
+        self.fc = base_model.fc
+    
+    def forward(self, x, lengths):
+        packed = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
+        output, _ = self.lstm(packed)
+        output, _ = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)  # (batch size, length of longest sequence, hidden state)
+        return self.fc(output)  # (batch size, length of longest sequence, 2 class) logits at every time step
 

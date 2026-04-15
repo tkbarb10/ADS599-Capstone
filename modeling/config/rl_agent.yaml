@@ -1,3 +1,5 @@
+random_state: 10
+
 network:
   input_size:
   hidden_sizes:
@@ -23,7 +25,22 @@ replay_buffer:
   min_size:
 
 data:
+  test_size: 0.2
+  batch_size: 16
   scaling_cols:
+    - anchor_age
+    - acuity
+    - current_temperature
+    - current_heartrate
+    - current_resprate
+    - current_o2sat
+    - current_sbp
+    - current_dbp
+    - current_pain
+    - current_pulse_pressure
+    - current_map
+    - height
+    - weight
   state_cols:
   action_col:
   stay_id_col:

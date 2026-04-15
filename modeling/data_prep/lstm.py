@@ -34,7 +34,6 @@ scaling_cols = data_config['scaling_cols']
 
 pad_length = data_config['pad_length']
 stay_length = data_config['stay_length']
-train_size = data_config['train_size']
 random_state = config['random_state']
 batch_size = data_config['batch_size']
 
@@ -65,7 +64,7 @@ def load_and_prep_lstm(hf_cfg: dict) -> tuple[pd.DataFrame, List[str]]:
     # Downcast to reduce memory: binary OHE cols to int8, continuous to float32.
     # pad_stays casts everything to float32 before building tensors anyway.
     binary_cols = [c for c in (
-        groups.lab_ohe + groups.micro_ohe + groups.status_ohe
+        groups.lab_ohe + groups.micro_ohe + groups.ecg_ohe + groups.rad_ohe
         + groups.dispensed_meds + groups.recon + groups.arrival + groups.missing
     ) if c in df.columns]
     df[binary_cols] = df[binary_cols].astype(np.int8)
@@ -91,7 +90,7 @@ def remove_outlier_stays(df: pd.DataFrame) -> pd.DataFrame:
 
 def split_data(
     df: pd.DataFrame,
-    train_size: float = train_size,
+    train_size: float,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Stratified 80/10/10 split by subject_id.
@@ -183,8 +182,7 @@ def pad_data(
     train_loader = DataLoader(
         TensorDataset(torch.tensor(s_train), y_train_t, torch.tensor(train_len)),
         batch_size=batch_size, shuffle=True,
-        generator=torch.Generator().manual_seed(random_state),
-        pin_memory=True
+        generator=torch.Generator().manual_seed(random_state)
     )
     del s_train, y_train, train_len
     gc.collect()

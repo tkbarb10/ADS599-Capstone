@@ -51,6 +51,7 @@ random_state = cfg["random_state"]
 
 model_cfg = cfg["model"]
 
+train_size = cfg['data']['train_size']
 train_cfg = cfg["training"]
 epochs = train_cfg["epochs"]
 learning_rate = train_cfg["learning_rate"]
@@ -89,7 +90,7 @@ logger.info(f"Using device {device}")
 # Pipeline functions
 # =============================================================================
 
-def prep_data(hf_cfg: dict, device: str, sample_size: Optional[float]=None) -> tuple:
+def prep_data(hf_cfg: dict, device: str, train_size: float=train_size, sample_size: Optional[float]=None) -> tuple:
     """
     Load, filter, split, compute class weights, scale, and pad data.
 
@@ -118,7 +119,7 @@ def prep_data(hf_cfg: dict, device: str, sample_size: Optional[float]=None) -> t
     del df
     gc.collect()
 
-    df_train, df_test, df_val = split_data(modeling_df)
+    df_train, df_test, df_val = split_data(modeling_df, train_size=train_size)
     del modeling_df
     gc.collect()
 
@@ -133,7 +134,7 @@ def prep_data(hf_cfg: dict, device: str, sample_size: Optional[float]=None) -> t
     scaled_train, scaled_test, scaled_val, scaler = scaling(
         train=df_train, test=df_test, val=df_val
     )
-    del df_train, df_val  # df_test kept for save_artifacts; scaled_test IS df_test
+    del df_train # df_test kept for save_artifacts; scaled_test IS df_test
     gc.collect()
 
     logger.info("Padding data, this might take a few min...")
@@ -143,7 +144,7 @@ def prep_data(hf_cfg: dict, device: str, sample_size: Optional[float]=None) -> t
     del scaled_train, scaled_val  # scaled_test kept (same object as df_test)
     gc.collect()
 
-    return pad_train, pad_val, pad_test, scaler, df_test, class_weight
+    return pad_train, pad_val, pad_test, scaler, df_test, df_val, class_weight
 
 
 def train_model(
@@ -168,7 +169,7 @@ def train_model(
         test_preds -- (N, 2) softmax tensor from held-out test set
         test_true -- (N,) integer label tensor from held-out test set
     """
-    seq_model = torch.compile(LSTMSequenceModel().to(device))
+    seq_model = LSTMSequenceModel().to(device)
     optimizer = optimizer_options[optimizer_key](
         seq_model.parameters(), lr=learning_rate, weight_decay=weight_decay
     )
@@ -284,6 +285,16 @@ def save_artifacts(
     )
     test_meta["pred_prob"] = test_preds[:, 1].numpy()  # P(ICU)
     test_meta["pred_label"] = test_preds.argmax(dim=1).numpy()
+
+    n_actions = df_test.groupby("ed_stay_id").size().rename("n_actions")
+    test_meta = test_meta.join(n_actions, on="ed_stay_id")
+
+    los = (
+        df_test[["ed_stay_id", "total_length"]]
+        .drop_duplicates("ed_stay_id")
+        .set_index("ed_stay_id")["total_length"]
+    )
+    test_meta = test_meta.join(los, on="ed_stay_id")
     test_meta.to_parquet(predictions_path, index=False)
     logger.info(f"Saved test predictions -> {predictions_path.name}")
 
@@ -307,7 +318,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     logger.info(f"Using device: {device}")
-    pad_train, pad_val, pad_test, scaler, df_test, class_weight = prep_data(hf_cfg, device, sample_size=args.sample_size)
+    pad_train, pad_val, pad_test, scaler, df_test, _, class_weight = prep_data(hf_cfg, device, sample_size=args.sample_size)
     seq_model, train_losses, eval_losses, test_preds = train_model(
         pad_train, pad_val, pad_test, class_weight, device
     )

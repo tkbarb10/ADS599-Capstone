@@ -18,6 +18,9 @@ training:
   patience: 3
   tol: .001
 
+step_by_step:
+  train_size: 0.6
+
 data:
   pad_length: 100 # This is the max number of actions taken in a patients stay.  Over 3k records have more than 100
   stay_length: 100 # Drop any ed stays with length of stay (in days) greater than this.  About 9500 records were longer than 100 days
@@ -43,3 +46,4 @@ data:
 
 artifacts:
   dir: modeling/artifacts/lstm
+  sbs_dir: modeling/artifacts/step_by_step

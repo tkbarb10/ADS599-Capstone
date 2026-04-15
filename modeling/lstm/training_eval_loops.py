@@ -28,16 +28,13 @@ def training_loop(train_data_loader, model, optimizer, loss_fn, device, training
     total_loss = 0
 
     model.train()
-    scaler = torch.amp.GradScaler(enabled=(device == 'cuda')) # type: ignore
     for batch, (X, y, lengths) in enumerate(train_data_loader):
         X, y = X.to(device), y.to(device)  # leave lengths on CPU for pack_padded_sequence
         optimizer.zero_grad()
-        with torch.autocast(device_type=device, enabled=(device == 'cuda')):
-            preds = model(X, lengths)
-            loss = loss_fn(preds, y)
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        preds = model(X, lengths)
+        loss = loss_fn(preds, y)
+        loss.backward()
+        optimizer.step()
         total_loss += loss.item()
 
         if batch % training_update == 0:
@@ -69,11 +66,10 @@ def evaluation_loop(test_data_loader, model, loss_fn, device):
     with torch.no_grad():
         for X, y, lengths in test_data_loader:
             X, y = X.to(device), y.to(device)  # leave lengths on CPU
-            with torch.autocast(device_type=device, enabled=(device == 'cuda')):
-                preds = model(X, lengths)  # (batch_size, num_classes) logits
-                loss = loss_fn(preds, y)
+            preds = model(X, lengths)  # (batch_size, num_classes) logits
+            loss = loss_fn(preds, y)
             test_loss += loss.item()
-            all_preds.append(torch.softmax(preds.float(), dim=-1).cpu())
+            all_preds.append(torch.softmax(preds, dim=-1).cpu())
             true_labels.append(y.cpu())
 
     test_loss /= num_batches
