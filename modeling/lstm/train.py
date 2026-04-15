@@ -303,7 +303,7 @@ def save_artifacts(
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Training loop to train a LSTM classifier")
-    parser.add_argument(name="--sample_size", required=False, type=float)
+    parser.add_argument("--sample_size", required=False, type=float)
     args = parser.parse_args()
 
     logger.info(f"Using device: {device}")
