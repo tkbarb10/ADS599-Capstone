@@ -155,6 +155,7 @@ if __name__ == "__main__":
     # -- Combine val + test for step-by-step inference ------------------------
     # pad_stays uses groupby('ed_stay_id') which sorts ascending -- mirror that
     # here so combined_dataset row order matches combined_tensor_dataset order
+    print("Combining val and test datasets to be used for step by step predictions")
     combined_dataset = pd.concat([
         df_val.sort_values('ed_stay_id'),
         df_test.sort_values('ed_stay_id'),
@@ -165,15 +166,16 @@ if __name__ == "__main__":
 
     n_stays_df = combined_dataset['ed_stay_id'].nunique()
     n_stays_tensors = len(combined_tensor_dataset)
-    assert n_stays_df == n_stays_tensors, (
-        f"Stay count mismatch: DataFrame has {n_stays_df}, tensors have {n_stays_tensors}"
-    )
+    if n_stays_df != n_stays_tensors:
+        msg = f"Stay count mismatch: DataFrame has {n_stays_df}, tensors have {n_stays_tensors}"
+        logger.error(msg)
+        raise AssertionError(msg)
 
     # -- Step-by-step inference -----------------------------------------------
     step_model = StepByStepWrapper(seq_model).to(device)
     probs_list = []
     lengths_list = []
-
+    print("Running model in evaluation mode to generate predictions, stand by...")
     step_model.eval()
     with torch.no_grad():
         for X, y, lengths in combined_loader:
@@ -202,3 +204,14 @@ if __name__ == "__main__":
     predictions_path = artifact_dir / f"sbs_predictions_{timestamp}.parquet"
     combined_dataset.to_parquet(predictions_path, index=False)
     logger.info(f"Saved sbs predictions -> {predictions_path.name}")
+
+    sbs_hf = hf_cfg['sbs_data']
+    from datasets import Dataset
+    ds = Dataset.from_pandas(combined_dataset, preserve_index=False)
+    ds.push_to_hub(
+        hf_cfg['step_by_step'],
+        config_name=sbs_hf['config_name'],
+        split=sbs_hf['split_name'],
+        data_dir=sbs_hf['data_dir'],
+    )
+    logger.info(f"Pushed sbs predictions to {hf_cfg['step_by_step']} / {sbs_hf['config_name']}")

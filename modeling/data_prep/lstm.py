@@ -24,7 +24,7 @@ from datasets import load_dataset
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from modeling.data_prep.columns import get_column_groups
+from modeling.data_prep.columns import get_column_groups, TERMINAL_MAP
 from utils.load_yaml_helper import load_yaml
 
 config = load_yaml('modeling/config/lstm.yaml')
@@ -38,9 +38,6 @@ random_state = config['random_state']
 batch_size = data_config['batch_size']
 
 logger = logging.getLogger(__name__)
-
-
-TERMINAL_MAP = {'discharge': 0, 'transfer_icu': 1}
 
 def load_and_prep_lstm(hf_cfg: dict) -> tuple[pd.DataFrame, List[str]]:
     logger.info('Loading full_patient_state from HuggingFace...')

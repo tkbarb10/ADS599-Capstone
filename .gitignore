@@ -2,7 +2,6 @@
 data_pipelines/combine_patient_state/_checkpoint.parquet
 modeling/artifacts/
 !modeling/artifacts/lstm
-!modeling/artifacts/step_by_step
 notes.md
 test.ipynb
 .claude/

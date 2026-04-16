@@ -9,10 +9,26 @@ logging:
   predict_path: predict.log
   tune_path: tune.log
   evaluate_path: evaluate.log
+  rl_train_path: rl_train.log
 
 hugging_face:
-  interim_data_repo: ADS599-Capstone/interim_data
+
+# Data used for classification modeling
   modeling_data_repo: ADS599-Capstone/modeling_data
+  full_patient_state:
+    config_name: full_patient_state
+    split_name: full_patient_state
+    data_dir: full_patient_state
+    
+# Used for training the reinforcement learning agent
+  step_by_step: ADS599-Capstone/sbs_predictions
+  sbs_data:
+    config_name: sbs_preds
+    split_name: sbs_preds_full
+    data_dir: sbs_preds
+
+# Interim data to be used for independent analysis
+  interim_data_repo: ADS599-Capstone/interim_data
   cohort:
     config_name: cohort_full
     split_name: cohort_base
@@ -57,10 +73,6 @@ hugging_face:
     config_name: triage_vitals
     split_name: triage_vitals_full
     data_dir: triage_vitals_data
-  full_patient_state:
-    config_name: full_patient_state
-    split_name: full_patient_state
-    data_dir: full_patient_state
 
 sql_dir: sql_scripts
 artifacts_dir: artifacts

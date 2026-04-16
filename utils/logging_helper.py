@@ -14,6 +14,9 @@ def setup_logging(log_file=log_file_path):
     logger = logging.getLogger() # Note: Setting up the ROOT logger here
     logger.setLevel(logging.DEBUG)
 
+    # Clear any handlers added by a previous setup_logging call (e.g. from an imported module)
+    logger.handlers.clear()
+
     # Console Handler (Stream)
     debug_handler = logging.StreamHandler()
     debug_handler.setLevel(logging.DEBUG)
