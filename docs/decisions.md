@@ -1,6 +1,6 @@
 # Who our patient cohort is
 
-The cohort consists of adult ED patients from MIMIC-IV (Beth Israel Deaconess Medical Center) whose ED visit ended in one of two terminal outcomes: discharge directly from the emergency department, or transfer to an ICU. Patients admitted to a general hospital ward without ICU transfer are excluded -- the clinical focus of this project is early identification of ICU-level acuity from data available in the first hour of an ED visit. Patients who died in the ED are also excluded.
+The cohort consists of adult ED patients from MIMIC-IV (Beth Israel Deaconess Medical Center) whose ED visit ended in one of two terminal outcomes: discharge directly from the emergency department or ward, or transfer to an ICU, whether that be direct from the ICU or they were transferred to the ward first before icu transfer icu
 
 Stays with an invalid or inverted stay window (see Stay Window Correction) and stays with fewer than two time steps after window filtering are also dropped.
 
@@ -45,7 +45,7 @@ A `culture_result` column is derived from `org_name` and `comments` using a rege
 
 Time steps are event-driven, not fixed-interval. A time step is created at each unique event time within a patient's stay window. Events that generate time steps include: vital sign charting, lab result availability, medication dispensing, microbiology culture orders, ECG results, and radiology results. The union of all event times within the stay window is sorted chronologically and assigned a sequential `step_idx` starting at 0.
 
-The `time` column records the absolute timestamp of each step. `time_since_last_min` records elapsed minutes since the previous step (0 at the first step of each stay). `stay_window_start` and `stay_window_end` define the bounds of the stay.
+`stay_window_start` and `stay_window_end` define the bounds of the stay.  `length_of_stay` records the total amount of time for that patients stay, measured in days
 
 State feature values carry forward from their last recorded value until updated -- if no new lab results arrive between steps 3 and 7, the lab state columns at step 7 still reflect the results from step 3. This represents the clinician's best current knowledge at each moment.
 
@@ -261,7 +261,7 @@ After imputation, the following features are derived from the numeric vital colu
 
 | Feature | Formula | Notes |
 |---|---|---|
-| `time_since_last_hrs` | `diff(charttime)` in hours | Hours since previous reading within the stay. First reading of each stay is NaN. Also a feature in its own right -- frequent readings signal closer monitoring. |
+| `time_since_last_min` | `diff(charttime)` in minutes | Minutes  since previous reading within the stay. First reading of each stay is NaN. Also a feature in its own right -- frequent readings signal closer monitoring. |
 | `{col}_rolling1h` | 1-hour trailing rolling mean | Time-based window (not row-based) so irregular sampling is handled correctly. Computed per stay using `set_index('charttime').rolling('1h')`. |
 | `{col}_delta` | `diff()` of column values | 1-step change from previous reading. First reading of each stay is NaN. |
 | `{col}_rate_per_min` | `{col}_delta / time_since_last_min` | Rate of change per minute. Normalises delta for the time gap between readings. |
