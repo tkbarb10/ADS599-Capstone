@@ -101,7 +101,7 @@ def prep_data(hf_cfg: dict, device: str, train_size: float=train_size, sample_si
 
     Returns:
         (pad_train, pad_val, pad_test, scaler, df_test, class_weight)
-        pad_*  -- DataLoaders ready for the model
+        pad_* -- DataLoaders ready for the model
         scaler -- fitted StandardScaler (saved as artifact)
         df_test -- raw test DataFrame for building predictions file
         class_weight -- weighted tensor for CrossEntropyLoss

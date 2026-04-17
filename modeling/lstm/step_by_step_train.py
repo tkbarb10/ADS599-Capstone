@@ -153,12 +153,14 @@ if __name__ == "__main__":
         logger.info(f"Restored model from epoch {best_epoch} (val loss: {best_eval_loss:.4f})")
 
     # -- Combine val + test for step-by-step inference ------------------------
-    # pad_stays uses groupby('ed_stay_id') which sorts ascending -- mirror that
-    # here so combined_dataset row order matches combined_tensor_dataset order
+    # pad_stays uses groupby('ed_stay_id') which iterates stays in ascending ed_stay_id
+    # order and preserves within-stay step order from the input DataFrame. Mirror both
+    # here: sort by ed_stay_id (between-stay) and step_idx (within-stay) so that the
+    # positional assignment of p_icu values lines up with the tensor sequence order.
     print("Combining val and test datasets to be used for step by step predictions")
     combined_dataset = pd.concat([
-        df_val.sort_values('ed_stay_id'),
-        df_test.sort_values('ed_stay_id'),
+        df_val.sort_values(['ed_stay_id', 'step_idx']),
+        df_test.sort_values(['ed_stay_id', 'step_idx']),
     ]).reset_index(drop=True)
 
     combined_tensor_dataset = ConcatDataset([pad_val.dataset, pad_test.dataset])

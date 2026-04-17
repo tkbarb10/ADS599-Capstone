@@ -79,16 +79,16 @@ def bellman(
 
     Args:
         model: Target network used for stable Q-value estimation.
-        reward: (B,) reward tensor.
-        next_state: (B, state_dim) next state tensor.
-        terminal: (B, 2) tensor -- terminal[:, 1] is the is_terminal flag.
+        reward: (batch_size,) reward tensor.
+        next_state: (batch_size, state_dim) next state tensor.
+        terminal: (batch_size, num_actions) tensor -- terminal[:, 1] is the is_terminal flag.
         gamma: Discount factor.
 
     Returns:
-        (B,) Q-target tensor.
+        (batch_size,) Q-target tensor.
     """
     is_terminal = terminal[:, 1]
     model.eval()
     with torch.no_grad():
         max_q = model(next_state).max(dim=1).values
-    return reward + gamma * max_q * (1 - is_terminal)
+    return reward + gamma * max_q * (1 - is_terminal) # cancels out and just left with the reward if is a terminal row
