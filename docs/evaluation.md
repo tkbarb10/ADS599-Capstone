@@ -103,11 +103,11 @@ Best eval loss: 0.0700 at epoch 2. The model ran all 5 configured epochs; early 
 
 | Epoch | Train Loss | Q-Loss | CQL | Eval Loss |
 |---|---|---|---|---|
-| 1 | 0.9085 | 0.8891 | 0.1937 | 0.2374 |
-| 2 | 0.3798 | 0.3658 | 0.1398 | 0.3817 |
-| 3 | 0.3660 | 0.3528 | 0.1321 | 0.4899 |
+| 1 | 0.8175 | 0.7974 | 0.2014 | 0.4010 |
+| 2 | 0.4236 | 0.4095 | 0.1407 | 0.4723 |
+| 3 | 0.3898 | 0.3766 | 0.1320 | 0.4733 |
 
-Train loss converges after epoch 2. Eval loss increases after epoch 1, indicating the agent overfits to the training distribution after sufficient training -- expected behavior in offline RL since the agent cannot explore to reduce distributional shift.
+Train loss converges after epoch 2. Eval loss increases after epoch 1 and plateaus, indicating the agent overfits to the training distribution after sufficient training -- expected behavior in offline RL since the agent cannot explore to reduce distributional shift.
 
 ### Terminal Row Metrics
 
@@ -116,13 +116,13 @@ Evaluated on the terminal event of each test stay (the row where the provider ma
 | Metric | Value |
 |---|---|
 | Terminal rows evaluated | 31,267 |
-| Agent predicted wait | 18,397 (58.8%) |
-| Agent predicted discharge or transfer | 12,870 (41.2%) |
-| F1 -- discharge (acted rows only) | 0.9985 |
-| F1 -- ICU transfer (acted rows only) | 0.9472 |
-| F1 -- macro (acted rows only) | 0.9729 |
+| Agent predicted wait | 18,576 (59.4%) |
+| Agent predicted discharge or transfer | 12,691 (40.6%) |
+| F1 -- discharge (acted rows only) | 0.9990 |
+| F1 -- ICU transfer (acted rows only) | 0.9431 |
+| F1 -- macro (acted rows only) | 0.9711 |
 
-F1 is computed only on the 12,870 rows where the agent predicted discharge or transfer (not wait). The 58.8% wait rate at terminal rows means the agent deferred on more than half of stays even at the true decision point. Among the stays where it did commit, accuracy is very high.
+F1 is computed only on the 12,691 rows where the agent predicted discharge or transfer (not wait). The 59.4% wait rate at terminal rows means the agent deferred on more than half of stays even at the true decision point. Among the stays where it did commit, accuracy is very high.
 
 ### First-Commit Metrics
 
@@ -131,25 +131,25 @@ For each test stay, the first event where the agent predicted discharge (0) or t
 | Metric | Value |
 |---|---|
 | Test stays | 31,267 |
-| Stays with a commit | 14,781 (47.3%) |
-| Stays with no commit | 16,486 (52.7%) |
-| Commit action = discharge | 14,428 (97.6% of committed) |
-| Commit action = transfer | 353 (2.4% of committed) |
-| True label = discharge (among committed) | 14,286 (96.7%) |
-| True label = ICU (among committed) | 495 (3.3%) |
-| F1 -- discharge at first commit | 0.9934 |
-| F1 -- ICU at first commit | 0.7759 |
-| F1 -- macro at first commit | 0.8847 |
-| Accuracy at first commit | 0.9871 |
-| Median commit event index | 3 |
-| Median provider event index | 3 |
-| Agent committed earlier than provider | 2,026 stays (13.7%) |
-| Agent committed same event as provider | 11,865 stays (80.3%) |
-| Agent committed later than provider | 890 stays (6.0%) |
+| Stays with a commit | 14,470 (46.3%) |
+| Stays with no commit | 16,797 (53.7%) |
+| Commit action = discharge | 14,262 (98.6% of committed) |
+| Commit action = transfer | 208 (1.4% of committed) |
+| True label = discharge (among committed) | 14,130 (97.6%) |
+| True label = ICU (among committed) | 340 (2.4%) |
+| F1 -- discharge at first commit | 0.9944 |
+| F1 -- ICU at first commit | 0.7117 |
+| F1 -- macro at first commit | 0.8531 |
+| Accuracy at first commit | 0.9891 |
+| Median commit event index | 6 |
+| Median provider event index | 7 |
+| Agent committed earlier than provider | 3,537 stays (24.4%) |
+| Agent committed same event as provider | 10,933 stays (75.6%) |
+| Agent committed later than provider | 0 stays (0.0%) |
 | Median steps earlier (among earlier commits) | 4 events |
 
 **Notes:**
-- 52.7% of test stays receive no commit, meaning the agent chose `wait` on every event of those stays. This reflects that `wait` was the action for all non-terminal rows in training, and the agent learned to be conservative about committing.
-- Among committed stays, the agent is heavily biased toward discharge (97.6%) vs. ICU transfer (2.4%), while the true ICU rate among committed stays is 3.3%. The agent's lower ICU commit rate contributes to the lower ICU F1 (0.7759 vs. discharge F1 of 0.9934).
-- The 80.3% rate of committing at the same event as the provider suggests the agent largely learned to match the provider's timing. Among the 13.7% of stays where it committed earlier, it did so a median of 4 events ahead.
-- Terminal row F1 (macro 0.9729) is substantially higher than first-commit F1 (macro 0.8847), indicating that early commitment does cost some accuracy on ICU identification.
+- 53.7% of test stays receive no commit, meaning the agent chose `wait` on every event of those stays. This reflects that `wait` was the action for all non-terminal rows in training, and the agent learned to be conservative about committing.
+- Among committed stays, the agent is heavily biased toward discharge (98.6%) vs. ICU transfer (1.4%), while the true ICU rate among committed stays is 2.4%. The agent's lower ICU commit rate contributes to the lower ICU F1 (0.7117 vs. discharge F1 of 0.9944).
+- With corrected `p_icu` ordering, the median commit event shifted to 6 (vs. provider median of 7), and early commits increased to 24.4% of committed stays (up from 13.7% in the previous run on misaligned data). The agent no longer commits later than the provider on any stay.
+- Terminal row F1 (macro 0.9711) is higher than first-commit F1 (macro 0.8531), confirming that early commitment costs some accuracy on ICU identification, primarily in recall (0.5735 vs. higher recall at the terminal row).
