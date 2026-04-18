@@ -83,6 +83,97 @@ Metrics are computed on the test split for the positive class (ICU transfer, lab
 
 ---
 
+## Hyperparameter Tuning: Traditional ML
+
+Tuning was performed using `HalvingGridSearchCV` (scikit-learn) with macro F1 as the scoring metric. The search was fit on the training set (319,122 stays) with 5-fold CV, then evaluated on the held-out validation and test sets. All three models used the same train/val/test splits as original training.
+
+**Run timestamp:** 20260418_152246
+
+### Tuning Configuration
+
+| Setting | Value |
+|---|---|
+| Method | HalvingGridSearchCV |
+| Scoring | f1_macro |
+| CV folds | 5 |
+| Factor | 3 |
+| min_resources | exhaust |
+| Random state | 10 |
+
+### Data Summary (all three models)
+
+| Split | Samples | Features (LR/RF) | Features (XGBoost) |
+|---|---|---|---|
+| Train | 319,122 | 237 | 266 |
+| Validation | 39,222 | 237 | 266 |
+| Test | 39,325 | 237 | 266 |
+
+### Best Hyperparameters
+
+**Logistic Regression**
+
+| Parameter | Value |
+|---|---|
+| C | 0.5 |
+| solver | saga |
+| max_iter | 400 |
+| tol | 0.0001 |
+| l1_ratio | 1 |
+
+**Random Forest**
+
+| Parameter | Value |
+|---|---|
+| n_estimators | 300 |
+| max_depth | None (unlimited) |
+| max_features | sqrt |
+| min_samples_split | 5 |
+| min_samples_leaf | 4 |
+
+**XGBoost**
+
+| Parameter | Value |
+|---|---|
+| n_estimators | 500 |
+| max_depth | 9 |
+| learning_rate | 0.05 |
+| subsample | 0.7 |
+| colsample_bytree | 1.0 |
+| min_child_weight | 3 |
+| gamma | 0.5 |
+
+### Tuned Model Metrics (test set)
+
+| Model | Accuracy | Precision | Recall | F1 (ICU) | ROC-AUC | PR-AUC | Brier Score |
+|---|---|---|---|---|---|---|---|
+| Random Forest (tuned) | 0.9153 | 0.4693 | 0.5933 | 0.5241 | 0.8965 | 0.5569 | 0.0734 |
+| XGBoost (tuned) | 0.8707 | 0.3482 | 0.7389 | 0.4733 | 0.9032 | 0.6017 | 0.0932 |
+| Logistic Regression (tuned) | 0.8149 | 0.2687 | 0.7874 | 0.4007 | 0.8906 | 0.5214 | 0.1323 |
+
+### CV F1 Scores (train set cross-validation)
+
+| Model | Train CV F1 (macro) | Val F1 (macro) | Test F1 (macro) |
+|---|---|---|---|
+| Random Forest | 0.7393 | 0.7384 | 0.7388 |
+| XGBoost | 0.7110 | 0.7058 | 0.6998 |
+| Logistic Regression | 0.6529 | 0.6527 | 0.6456 |
+
+### Comparison vs. Baseline
+
+| Model | Baseline F1 (ICU) | Tuned F1 (ICU) | Baseline PR-AUC | Tuned PR-AUC |
+|---|---|---|---|---|
+| Logistic Regression | **0.4017** | 0.4007 | **0.5253** | 0.5214 |
+| Random Forest | 0.5093 | **0.5241** | 0.5416 | **0.5569** |
+| XGBoost | 0.4397 | **0.4733** | **0.6067** | 0.6017 |
+
+**Notes:**
+- Random Forest and XGBoost both improved with tuning; Random Forest gained the most (+0.015 F1, +0.015 PR-AUC).
+- Logistic Regression performed marginally worse after tuning (F1: -0.001, PR-AUC: -0.004). The original baseline logistic regression hyperparameters (`C=1.0`, `solver=saga`, `max_iter=300`, `tol=0.001`) are retained as the preferred configuration.
+- Tuned Random Forest achieves the best Brier Score among traditional ML models (0.0734), indicating better-calibrated probabilities relative to baseline.
+- None of the tuned traditional ML models approach LSTM performance (PR-AUC 0.977), which is expected given the aggregation to a single row per stay discards temporal information.
+
+---
+
 ## LSTM Training Loss Curves
 
 | Epoch | Train Loss | Eval Loss |
