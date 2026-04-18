@@ -69,10 +69,14 @@ if __name__ == '__main__':
     with open(scaler_path, 'wb') as f:
         pickle.dump(scaler, f)
 
+    train_path = artifact_dir / f'train_{timestamp}.parquet'
+
     test.to_parquet(test_path, index=False)
     validation.to_parquet(validation_path, index=False)
+    train.to_parquet(train_path, index=False)
 
-    logger.info(f'Model saved    -> {model_path}')
-    logger.info(f'Scaler saved   -> {scaler_path}')
-    logger.info(f'Test set saved -> {test_path}')
-    logger.info(f'Val set saved  -> {validation_path}')
+    logger.info(f'Model saved     -> {model_path}')
+    logger.info(f'Scaler saved    -> {scaler_path}')
+    logger.info(f'Train set saved -> {train_path}')
+    logger.info(f'Test set saved  -> {test_path}')
+    logger.info(f'Val set saved   -> {validation_path}')

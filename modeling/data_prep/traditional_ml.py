@@ -157,6 +157,10 @@ def load_and_prep(hf_cfg: dict, use_tfidf: bool = False) -> pd.DataFrame:
         if c in df_1h.columns and c not in skip:
             agg_dict[c] = 'first'
 
+    # target_col is excluded from agg_dict via NON_TRAIN_COLS; carry it through explicitly
+    if target_col in df_1h.columns:
+        agg_dict[target_col] = 'first'
+
     df_1h = df_1h.copy()  # defragment before groupby
     df_stay = df_1h.groupby(['ed_stay_id', 'subject_id'], sort=False).agg(agg_dict)
     df_stay = df_stay.reset_index().copy()

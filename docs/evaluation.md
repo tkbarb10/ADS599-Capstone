@@ -28,7 +28,7 @@ All models draw from the same MIMIC-IV ED cohort: adult ED visits with a termina
 | Random Forest | 242 | OHE -- 21 clinical categories |
 | XGBoost | 271 | TF-IDF -- top 50 unigrams/bigrams (replaces OHE cc_ columns) |
 
-The 242 shared features include: current vitals (6), derived MAP, lab state OHE (57), microbiology OHE (84), dispensed medication flags (21), medrecon flags (19), ECG/radiology OHE (6), action flags (5), static patient features (anchor_age, acuity, gender, height, weight, arrival transport OHE), and missingness indicators. XGBoost drops the 21 OHE chief complaint columns and substitutes 50 TF-IDF terms, netting 271 total.
+The 224 shared features include: current vitals (6), derived MAP, lab state OHE (57), microbiology OHE (84), dispensed medication flags (21), medrecon flags (19), ECG/radiology OHE (6), action flags (5), static patient features (anchor_age, acuity, gender, height, weight, arrival transport OHE), and missingness indicators. XGBoost drops the 21 OHE chief complaint columns and substitutes 50 TF-IDF terms, netting 271 total.
 
 ---
 

@@ -41,7 +41,7 @@ logger = setup_logging(settings['logging']['evaluate_path'])
 PROJECT_ROOT = Path(__file__).parents[2]
 
 TARGET_NAMES = ['Discharge', 'ICU']
-DROP_COLS = {'label', 'pred_label', 'pred_prob', 'ed_stay_id', 'subject_id'}
+DROP_COLS = {'label', 'pred_label', 'pred_prob', 'ed_stay_id', 'subject_id', 'in_ed', 'in_ward'}
 
 MODEL_COLORS = {
     'log_reg': '#0077BB',
@@ -87,16 +87,18 @@ def _latest(directory: Path, pattern: str) -> Path:
     return matches[-1]
 
 
-def _load_predictions(model_name: str) -> pd.DataFrame:
+def _load_predictions(model_name: str, tuned: bool = False) -> pd.DataFrame:
     artifact_dir = PROJECT_ROOT / config['artifacts'][f'{model_name}_dir']
-    path = _latest(artifact_dir, 'test_predictions_*.parquet')
+    pattern = f'best_tuned_test_predictions_*.parquet' if tuned else 'test_predictions_*.parquet'
+    path = _latest(artifact_dir, pattern)
     logger.info(f'[{model_name}] Loading predictions: {path.name}')
     return pd.read_parquet(path)
 
 
-def _load_model(model_name: str):
+def _load_model(model_name: str, tuned: bool = False) -> object:
     artifact_dir = PROJECT_ROOT / config['artifacts'][f'{model_name}_dir']
-    path = _latest(artifact_dir, f'{MODEL_PREFIX[model_name]}_*.pkl')
+    pattern = f'best_tuned_{MODEL_PREFIX[model_name]}_*.pkl' if tuned else f'{MODEL_PREFIX[model_name]}_[0-9]*.pkl'
+    path = _latest(artifact_dir, pattern)
     logger.info(f'[{model_name}] Loading model: {path.name}')
     with open(path, 'rb') as f:
         return pickle.load(f)
@@ -301,11 +303,14 @@ if __name__ == '__main__':
     parser.add_argument('--models', nargs='+', required=True,
                         choices=list(MODEL_LABELS),
                         help='One or more models: log_reg | random_forest | xgboost')
+    parser.add_argument('--tuned', action='store_true',
+                        help='Load best_tuned_* artifacts instead of baseline trained models')
     args = parser.parse_args()
 
     eval_dir = PROJECT_ROOT / config['artifacts']['evaluation_dir']
     eval_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    file_prefix = 'tuned_model_comparison' if args.tuned else 'metrics'
 
     # -----------------------------------------------------------------------
     # Load predictions and models
@@ -315,10 +320,10 @@ if __name__ == '__main__':
     models = {}
 
     for model_name in args.models:
-        df = _load_predictions(model_name)
+        df = _load_predictions(model_name, tuned=args.tuned)
         model_results[model_name] = (df['label'], df['pred_label'], df['pred_prob'])
         model_preds[model_name] = df
-        models[model_name] = _load_model(model_name)
+        models[model_name] = _load_model(model_name, tuned=args.tuned)
 
     # -----------------------------------------------------------------------
     # Metrics table
@@ -332,29 +337,30 @@ if __name__ == '__main__':
     metrics_df = pd.DataFrame(rows).set_index('Model')
     logger.info(f'\n{metrics_df.to_string()}')
 
-    metrics_path = eval_dir / f'metrics_{timestamp}.csv'
+    metrics_path = eval_dir / f'{file_prefix}_{timestamp}.csv'
     metrics_df.to_csv(metrics_path)
     logger.info(f'Metrics saved -> {metrics_path.name}')
 
     # -----------------------------------------------------------------------
     # Confusion matrices (one per model)
     # -----------------------------------------------------------------------
+    plot_ts = f'{file_prefix}_{timestamp}'
     for model_name, (y_true, y_pred, _) in model_results.items():
-        plot_confusion_matrix(y_true, y_pred, model_name, eval_dir, timestamp)
+        plot_confusion_matrix(y_true, y_pred, model_name, eval_dir, plot_ts)
 
     # -----------------------------------------------------------------------
     # Multi-model comparison plots
     # -----------------------------------------------------------------------
-    plot_roc_curve(model_results, eval_dir, timestamp)
-    plot_pr_curve(model_results, eval_dir, timestamp)
-    plot_calibration_curve(model_results, eval_dir, timestamp)
-    plot_prob_distribution(model_results, eval_dir, timestamp)
+    plot_roc_curve(model_results, eval_dir, plot_ts)
+    plot_pr_curve(model_results, eval_dir, plot_ts)
+    plot_calibration_curve(model_results, eval_dir, plot_ts)
+    plot_prob_distribution(model_results, eval_dir, plot_ts)
 
     # -----------------------------------------------------------------------
     # Feature importance (one per model)
     # -----------------------------------------------------------------------
     for model_name in args.models:
         plot_feature_importance(models[model_name], model_preds[model_name],
-                                model_name, eval_dir, timestamp)
+                                model_name, eval_dir, plot_ts)
 
     logger.info('Evaluation complete.')
