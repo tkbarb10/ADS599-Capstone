@@ -26,6 +26,7 @@ import pandas as pd
 import torch
 from sklearn.metrics import confusion_matrix, f1_score
 
+from modeling.data_prep.columns import get_column_groups
 from modeling.data_prep.rl import load_and_prep_rl, split_rl_data
 from modeling.rl_agent.agent import ProviderNetwork
 from modeling.rl_agent.rl_functions import ACTION_LABELS
@@ -42,7 +43,6 @@ network_cfg = cfg['network']
 artifact_cfg = cfg['artifacts']
 hf_cfg = settings['hugging_face']
 batch_size = cfg['data']['batch_size']
-scaling_cols = cfg['data']['scaling_cols']
 
 policy_dir = PROJECT_ROOT / artifact_cfg['policy_dir']
 eval_dir = PROJECT_ROOT / 'modeling/artifacts/rl_agent_evaluation'
@@ -486,7 +486,7 @@ if __name__ == '__main__':
 
     # 2. Scale test features using the saved scaler (fit on train, not test)
     scaler = pickle.load(open(_latest(policy_dir, 'rl_scaler_*.pkl'), 'rb'))
-    cols_to_scale = [c for c in scaling_cols if c in df_test.columns]
+    cols_to_scale = [c for c in get_column_groups(df_test).scaling_cols if c in df_test.columns]
     df_test[cols_to_scale] = scaler.transform(df_test[cols_to_scale])
 
     # 3. Load policy and run inference

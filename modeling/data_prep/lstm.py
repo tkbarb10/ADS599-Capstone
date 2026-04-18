@@ -30,8 +30,6 @@ from utils.load_yaml_helper import load_yaml
 config = load_yaml('modeling/config/lstm.yaml')
 data_config = config['data']
 target_col = data_config['target_col']
-scaling_cols = data_config['scaling_cols']
-
 pad_length = data_config['pad_length']
 stay_length = data_config['stay_length']
 random_state = config['random_state']
@@ -138,7 +136,8 @@ def scaling(
     val: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, StandardScaler]:
     """Fit StandardScaler on train rows only, transform all three splits."""
-    cols = [c for c in scaling_cols if c in train.columns]
+    groups = get_column_groups(train)
+    cols = [c for c in groups.scaling_cols if c in train.columns]
     scaler = StandardScaler()
     train[cols] = scaler.fit_transform(train[cols])
     test[cols] = scaler.transform(test[cols])

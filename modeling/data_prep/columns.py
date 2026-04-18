@@ -87,9 +87,14 @@ class ColumnGroups:
         )
     
     @property
+    def scaling_cols(self) -> List[str]:
+        """Continuous features to StandardScale. Filter to df.columns before applying."""
+        return ['anchor_age', 'height', 'weight', 'time_since_last_min'] + self.vitals + self.vital_change
+
+    @property
     def action_cols(self) -> List[str]:
         return self.action_flags
-    
+
     @property
     def terminal_row(self) -> str:
         return 'terminal_code'

@@ -34,7 +34,6 @@ rl_data = rl_config['data']
 
 random_state = rl_config['random_state']
 test_size = rl_data['test_size']
-scaling_cols = rl_data['scaling_cols']
 
 
 def create_action_col(df: pd.DataFrame, cols: List[str], suffix: str) -> pd.DataFrame:
@@ -100,7 +99,8 @@ def scaling(
     test: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame, StandardScaler]:
     """Fit StandardScaler on train rows only, transform both splits."""
-    cols = [c for c in scaling_cols if c in train.columns]
+    groups = get_column_groups(train)
+    cols = [c for c in groups.scaling_cols if c in train.columns]
     scaler = StandardScaler()
     train[cols] = scaler.fit_transform(train[cols])
     test[cols] = scaler.transform(test[cols])

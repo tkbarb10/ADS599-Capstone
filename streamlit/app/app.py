@@ -33,14 +33,20 @@ if 'subject_id'  not in st.session_state:
 if 'ed_stay_id'  not in st.session_state:
     st.session_state.ed_stay_id  = None
 
-# ── Subject-level summary for AgGrid ──────────────────────────────────────
-# One row per subject; show info from their most recent ED visit.
+# ── Stay-level summary — one row per ED stay ──────────────────────────────
+stay_outcomes = (
+    patient_probability[patient_probability['terminal_code'] == 1]
+    .drop_duplicates('ed_stay_id')[['ed_stay_id', 'terminal_event']]
+    .assign(Outcome=lambda d: d['terminal_event'].map({'discharge': 'Discharge', 'transfer_icu': 'ICU Transfer'}))
+)
+patient_stats_with_outcome = patient_stats.merge(stay_outcomes[['ed_stay_id', 'Outcome']], on='ed_stay_id', how='left')
+
 subject_summary = (
-    patient_stats
+    patient_stats_with_outcome
     .sort_values('ed_intime', ascending=False)
-    .drop_duplicates('subject_id')
-    [['subject_id', 'anchor_age', 'chiefcomplaint', 'arrival_transport']]
+    [['ed_stay_id', 'subject_id', 'anchor_age', 'chiefcomplaint', 'arrival_transport', 'Outcome']]
     .rename(columns={
+        'ed_stay_id':        'Stay ID',
         'subject_id':        'Patient ID',
         'anchor_age':        'Age',
         'chiefcomplaint':    'Chief Complaint',
@@ -140,6 +146,7 @@ with st.sidebar:
     age_min, age_max = int(subject_summary['Age'].min()), int(subject_summary['Age'].max())
     age_range = st.slider("Age range", age_min, age_max, (age_min, age_max), key='age_filter')
     cc_filter = st.text_input("Chief complaint contains", key='cc_filter', placeholder="e.g. chest pain")
+    outcome_filter = st.radio("Outcome", ["All", "Discharge", "ICU Transfer"], horizontal=True, key='outcome_filter')
 
     filtered = subject_summary[
         subject_summary['Age'].between(age_range[0], age_range[1])
@@ -148,6 +155,8 @@ with st.sidebar:
         filtered = filtered[
             filtered['Chief Complaint'].str.contains(cc_filter, case=False, na=False)
         ]
+    if outcome_filter != "All":
+        filtered = filtered[filtered['Outcome'] == outcome_filter]
 
     sel = st.dataframe(
         filtered.reset_index(drop=True),
@@ -160,31 +169,13 @@ with st.sidebar:
     )
 
     sel_rows = (sel or {}).get("selection", {}).get("rows", [])
-    if sel_rows:
-        chosen_subject = int(filtered.iloc[sel_rows[0]]['Patient ID'])
-        if chosen_subject != st.session_state.subject_id:
-            st.session_state.subject_id = chosen_subject
-            st.session_state.ed_stay_id = None  # reset stay when patient changes
-
-    # ED stay selector (only when a subject is selected with multiple visits)
-    if st.session_state.subject_id is not None:
-        subject_stays = (
-            patient_stats[patient_stats['subject_id'] == st.session_state.subject_id]
-            .sort_values('ed_intime')['ed_stay_id']
-            .tolist()
-        )
-        if len(subject_stays) > 1:
-            st.divider()
-            st.markdown("**Select ED Visit**")
-            chosen_stay = st.selectbox(
-                "ED Stay",
-                options=subject_stays,
-                format_func=lambda x: f"Stay  {x}",
-                label_visibility="collapsed",
-            )
+    if sel_rows and sel_rows[0] < len(filtered):
+        chosen_row = filtered.iloc[sel_rows[0]]
+        chosen_stay = int(chosen_row['Stay ID'])
+        chosen_subject = int(chosen_row['Patient ID'])
+        if chosen_stay != st.session_state.ed_stay_id:
             st.session_state.ed_stay_id = chosen_stay
-        elif subject_stays:
-            st.session_state.ed_stay_id = subject_stays[0]
+            st.session_state.subject_id = chosen_subject
 
 
 # ── Main content ───────────────────────────────────────────────────────────
@@ -311,14 +302,14 @@ with tab2:
         st.info("No trajectory data available for this patient.", icon="📈")
     else:
         ed_intime = pd.to_datetime(row['ed_intime'])
-        terminal_code = int(stay_prob['terminal_code'].iloc[0])
-        terminal_label = "ICU Transfer" if terminal_code == 1 else "Discharge"
+        terminal_event = stay_prob['terminal_event'].iloc[0]
+        terminal_label = "ICU Transfer" if terminal_event == 'transfer_icu' else "Discharge"
+        terminal_code = 1 if terminal_event == 'transfer_icu' else 0
         n_steps = len(stay_prob)
 
-        # Step times: ed_intime + step_idx × 30 min (no year)
         step_times = [
-            (ed_intime + pd.Timedelta(minutes=30 * i)).strftime('%b %d, %I:%M %p')
-            for i in range(n_steps)
+            pd.to_datetime(t).strftime('%b %d, %I:%M %p')
+            for t in stay_sf['time']
         ]
 
         # ── View toggle ───────────────────────────────────────────────────
@@ -401,9 +392,9 @@ with tab2:
                 key='step_slider',
             )
 
-            step_row = stay_prob[stay_prob['step_idx'] == step_sel].iloc[0]
-            sf_row   = stay_sf[stay_sf['step_idx'] == step_sel]
-            sf_prev  = stay_sf[stay_sf['step_idx'] == step_sel - 1] if step_sel > 0 else None
+            step_row = stay_prob.iloc[step_sel]
+            sf_row   = stay_sf.iloc[[step_sel]]
+            sf_prev  = stay_sf.iloc[[step_sel - 1]] if step_sel > 0 else None
 
             p_icu_val = float(step_row['p_icu'])
             in_ed    = bool(step_row['in_ed'])
@@ -457,7 +448,7 @@ with tab2:
                 st.metric("Time", step_times[step_sel])
                 st.metric("Step", f"{step_sel} of {n_steps - 1}")
                 if step_sel > 0:
-                    prev_p = float(stay_prob[stay_prob['step_idx'] == step_sel - 1]['p_icu'].iloc[0])
+                    prev_p = float(stay_prob.iloc[step_sel - 1]['p_icu'])
                     delta = p_icu_val - prev_p
                     delta_str = f"{delta:+.1%}"
                     st.metric("Change from prev", delta_str)
@@ -558,10 +549,9 @@ with tab3:
     else:
         # Step selector for waterfall
         n3 = len(stay_sf3)
-        ed_intime3 = pd.to_datetime(row['ed_intime'])
         step_times3 = [
-            (ed_intime3 + pd.Timedelta(minutes=30 * i)).strftime('%b %d, %I:%M %p')
-            for i in range(n3)
+            pd.to_datetime(t).strftime('%b %d, %I:%M %p')
+            for t in stay_sf3['time']
         ]
         step_sel3 = st.select_slider(
             "Select a step",
@@ -570,7 +560,7 @@ with tab3:
             key='step_slider_tab3',
         )
 
-        sf3 = stay_sf3[stay_sf3['step_idx'] == step_sel3].iloc[0]
+        sf3 = stay_sf3.iloc[step_sel3]
 
         # Placeholder feature contributions — feature value × fixed weight,
         # anchored so the running total lands near the actual p_icu.

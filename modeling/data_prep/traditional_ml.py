@@ -27,7 +27,6 @@ from utils.load_yaml_helper import load_yaml
 config = load_yaml('modeling/config/traditional_ml.yaml')
 data_config = config['data']
 target_col = data_config['target_col']
-scaling_cols = data_config['scaling_cols']
 
 TERMINAL_MAP = {'discharge': 0, 'transfer_icu': 1}
 
@@ -245,7 +244,8 @@ def training_split(df: pd.DataFrame, stratify_label: str = 'label', train_size: 
 
 
 def scaling(train: pd.DataFrame, test: pd.DataFrame, validation: pd.DataFrame):
-    cols = [c for c in scaling_cols if c in train.columns]
+    groups = get_column_groups(train)
+    cols = [c for c in groups.scaling_cols if c in train.columns]
     scaler = StandardScaler()
     train = train.copy()
     test = test.copy()

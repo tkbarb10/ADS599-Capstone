@@ -22,20 +22,6 @@ reward:
 data:
   test_size: 0.2
   batch_size: 16
-  scaling_cols:
-    - anchor_age
-    - acuity
-    - current_temperature
-    - current_heartrate
-    - current_resprate
-    - current_o2sat
-    - current_sbp
-    - current_dbp
-    - current_pain
-    - current_pulse_pressure
-    - current_map
-    - height
-    - weight
   action_col: action_taken
   stay_id_col: ed_stay_id
   event_col: event_idx

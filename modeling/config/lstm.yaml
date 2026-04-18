@@ -24,20 +24,6 @@ step_by_step:
 data:
   pad_length: 100 # This is the max number of actions taken in a patients stay.  Over 3k records have more than 100
   stay_length: 100 # Drop any ed stays with length of stay (in days) greater than this.  About 9500 records were longer than 100 days
-  scaling_cols:
-    - anchor_age
-    - acuity
-    - current_temperature
-    - current_heartrate
-    - current_resprate
-    - current_o2sat
-    - current_sbp
-    - current_dbp
-    - current_pain
-    - current_pulse_pressure
-    - current_map
-    - height
-    - weight
   target_col: terminal_event
   stay_id_col: ed_stay_id
   step_col:

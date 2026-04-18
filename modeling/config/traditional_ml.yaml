@@ -37,20 +37,6 @@ xgboost:
   n_jobs: -1
 
 data:
-  scaling_cols:
-    - anchor_age
-    - acuity
-    - current_temperature
-    - current_heartrate
-    - current_resprate
-    - current_o2sat
-    - current_sbp
-    - current_dbp
-    - current_pain
-    - current_pulse_pressure
-    - current_map
-    - height
-    - weight
   non_train_cols:
   - ed_stay_id
   - time
