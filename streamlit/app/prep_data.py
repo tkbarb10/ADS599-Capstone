@@ -5,6 +5,9 @@ Saves 3 parquets to streamlit/ root (parent of this script's directory).
     cd streamlit/app
     python prep_data.py
 """
+import json
+
+import numpy as np
 import pandas as pd
 from datasets import load_dataset
 from pathlib import Path
@@ -24,6 +27,46 @@ data_df = load_dataset(DATA_REPO, name='sbs_preds', split='sbs_preds_full').to_p
 
 print(f"  cohort: {len(patient_df):,} rows") # type: ignore
 print(f"  data_df: {data_df.shape}") # type: ignore
+
+# ── Sample 5k stays (1k ICU, 4k discharge) ───────────────────────────────
+rng = np.random.default_rng(10)
+stay_meta = data_df.drop_duplicates('ed_stay_id')[['ed_stay_id', 'terminal_event']] # type: ignore
+icu_stays = stay_meta[stay_meta['terminal_event'] == 'transfer_icu']['ed_stay_id'].tolist()
+dis_stays = stay_meta[stay_meta['terminal_event'] == 'discharge']['ed_stay_id'].tolist()
+n_icu = min(1000, len(icu_stays))
+n_dis = min(4000, len(dis_stays))
+sampled_ids = set(
+    rng.choice(icu_stays, n_icu, replace=False).tolist() +
+    rng.choice(dis_stays, n_dis, replace=False).tolist()
+)
+data_df = data_df[data_df['ed_stay_id'].isin(sampled_ids)].copy() # type: ignore
+print(f"  Sampled {len(sampled_ids):,} stays ({n_icu:,} ICU, {n_dis:,} discharge)")
+
+with open(OUT_DIR / 'sampled_stay_ids.json', 'w') as f:
+    json.dump(sorted(sampled_ids), f)
+
+# ── Derive and save state_cols ────────────────────────────────────────────
+dispensed_meds = list(data_df.loc[:, 'ACE Inhibitor':'Other'].columns) if 'ACE Inhibitor' in data_df.columns else [] # type: ignore
+recon       = [c for c in data_df.columns if c.startswith('recon_')] # type: ignore
+vitals      = [c for c in data_df.columns if c.startswith('current_')] # type: ignore
+vital_change = [c for c in data_df.columns if c.endswith(('_rolling1h', '_delta', '_rate_per_min'))] # type: ignore
+lab_ohe     = [c for c in data_df.columns if c.endswith(('_Normal', '_Pending', '_Abnormal')) and '-' in c] # type: ignore
+micro_ohe   = [c for c in data_df.columns if c.endswith(('_Pending', '_Positive', '_Negative', '_Other')) and '-' not in c and not c.startswith(('ecg_status', 'rad_status'))] # type: ignore
+ecg_ohe     = [c for c in data_df.columns if c.startswith('ecg_status')] # type: ignore
+rad_ohe     = [c for c in data_df.columns if c.startswith('rad_status')] # type: ignore
+arrival     = [c for c in data_df.columns if c.startswith('arrival_')] # type: ignore
+missing     = [c for c in data_df.columns if c.endswith('_missing')] # type: ignore
+
+state_cols = (
+    ['gender', 'anchor_age', 'acuity', 'height', 'weight', 'time_since_last_min']
+    + dispensed_meds + recon + vitals + vital_change
+    + lab_ohe + micro_ohe + ecg_ohe + rad_ohe + arrival + missing
+)
+state_cols = [c for c in state_cols if c in data_df.columns] # type: ignore
+
+with open(OUT_DIR / 'state_cols.json', 'w') as f:
+    json.dump(state_cols, f)
+print(f"  state_cols.json: {len(state_cols)} features")
 
 eds = set(data_df['ed_stay_id'].unique()) # type: ignore
 

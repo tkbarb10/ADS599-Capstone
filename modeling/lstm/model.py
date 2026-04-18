@@ -57,3 +57,15 @@ class StepByStepWrapper(nn.Module):
         output, _ = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)  # (batch size, length of longest sequence, hidden state)
         return self.fc(output)  # (batch size, length of longest sequence, 2 class) logits at every time step
 
+# Model wrapper to dynamically compute lengths for shap values
+class ShapWrap(nn.Module):
+    def __init__(self, seq_model):
+        self.seq_model = seq_model
+    def forward(self, x, lengths=None):
+        if lengths is None:
+            # compute actual lengths from non-zero rows
+            lengths = (x.abs().sum(dim=-1) != 0).sum(dim=1).clamp(min=1)
+        packed = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
+        _, (h_n, _) = self.seq_model.lstm(packed)
+        return self.seq_model.fc(h_n[-1])
+

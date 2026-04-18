@@ -1,10 +1,16 @@
 """
 Patient Portal — Emergency Department Clinical Decision Support
-Iteration 2: Transfer Decision (Tab 2) + What Matters placeholder (Tab 3)
+Iteration 2: Transfer Decision (Tab 2) + What Matters (Tab 3, live SHAP)
 """
+import json
+
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import shap
 import streamlit as st
+import torch
+import torch.nn as nn
 from pathlib import Path
 
 # ── Page config ────────────────────────────────────────────────────────────
@@ -16,6 +22,68 @@ st.set_page_config(
 )
 
 DATA_DIR = Path(__file__).parent.parent  # streamlit/ root
+
+# ── LSTM model (self-contained, no modeling.* imports) ─────────────────────
+_INPUT_SIZE  = 236
+_HIDDEN_SIZE = 256
+_NUM_LAYERS  = 2
+_DROPOUT     = 0.2
+_PAD_LEN     = 100
+
+class _LSTMSequenceModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.lstm    = nn.LSTM(_INPUT_SIZE, _HIDDEN_SIZE, _NUM_LAYERS,
+                               batch_first=True, dropout=_DROPOUT)
+        self.dropout = nn.Dropout(_DROPOUT)
+        self.fc      = nn.Linear(_HIDDEN_SIZE, 2)
+
+    def forward(self, x, lengths):
+        packed = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
+        _, (h_n, _) = self.lstm(packed)
+        return self.fc(self.dropout(h_n[-1]))
+
+
+class _ModelWrapper(nn.Module):
+    """Wraps LSTMSequenceModel for GradientExplainer: auto-computes lengths from padding."""
+    def __init__(self, seq_model: _LSTMSequenceModel):
+        super().__init__()
+        self.lstm = seq_model.lstm
+        self.fc   = seq_model.fc
+
+    def forward(self, x):
+        lengths = (x.abs().sum(dim=-1) != 0).sum(dim=1).clamp(min=1)
+        packed  = nn.utils.rnn.pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
+        _, (h_n, _) = self.lstm(packed)
+        return self.fc(h_n[-1])
+
+
+@st.cache_resource
+def load_shap_resources():
+    weights_path  = DATA_DIR / 'lstm_weights.pt'
+    baseline_path = DATA_DIR / 'baseline_tensors.pt'
+    cols_path     = DATA_DIR / 'state_cols.json'
+
+    if not weights_path.exists() or not baseline_path.exists() or not cols_path.exists():
+        return None, None, None, None
+
+    seq_model = _LSTMSequenceModel()
+    seq_model.load_state_dict(torch.load(weights_path, map_location='cpu'))
+    seq_model.train()
+    wrapper = _ModelWrapper(seq_model)
+
+    baseline   = torch.load(baseline_path, map_location='cpu')
+    state_cols = json.load(open(cols_path))
+
+    explainer = shap.GradientExplainer(model=wrapper, data=baseline)
+
+    wrapper.eval()
+    with torch.no_grad():
+        base_prob = torch.softmax(wrapper(baseline), dim=-1)[:, 1].mean().item()
+    wrapper.train()
+
+    return explainer, state_cols, base_prob, wrapper
+
 
 # ── Data loading ───────────────────────────────────────────────────────────
 @st.cache_data
@@ -541,103 +609,97 @@ with tab3:
     ].sort_values('step_idx').reset_index(drop=True)
 
     st.markdown("#### Feature Attribution")
-    st.caption("🚧 Placeholder — Policy gradient attribution coming soon. "
-               "Values below are illustrative only.")
+    st.caption("SHAP attributions computed live — summed across all ED events for this patient.")
 
     if stay_sf3.empty:
         st.info("No feature data available for this patient.", icon="🔍")
     else:
-        # Step selector for waterfall
-        n3 = len(stay_sf3)
-        step_times3 = [
-            pd.to_datetime(t).strftime('%b %d, %I:%M %p')
-            for t in stay_sf3['time']
-        ]
-        step_sel3 = st.select_slider(
-            "Select a step",
-            options=list(range(n3)),
-            format_func=lambda i: f"Step {i}  ·  {step_times3[i]}",
-            key='step_slider_tab3',
-        )
+        explainer, state_cols, base_prob, wrapper = load_shap_resources()
 
-        sf3 = stay_sf3.iloc[step_sel3]
+        if explainer is None:
+            st.warning(
+                "SHAP resources not found. Copy `lstm_weights.pt` and `baseline_tensors.pt` "
+                "to the `streamlit/` directory and re-run `prep_data.py` to generate `state_cols.json`.",
+                icon="⚠️",
+            )
+        else:
+            with st.spinner("Computing SHAP attributions..."):
+                # Build padded tensor for this stay (already scaled in step_features)
+                missing_cols = [c for c in state_cols if c not in stay_sf3.columns]
+                if missing_cols:
+                    stay_sf3 = pd.concat(
+                        [stay_sf3, pd.DataFrame(0.0, index=stay_sf3.index, columns=missing_cols)],
+                        axis=1,
+                    )
 
-        # Placeholder feature contributions — feature value × fixed weight,
-        # anchored so the running total lands near the actual p_icu.
-        WATERFALL_FEATURES = [
-            ('current_heartrate',         'Heart Rate',       0.004),
-            ('current_o2sat',             'O2 Saturation',    -0.01),
-            ('current_sbp',               'Systolic BP',      0.003),
-            ('current_pain',              'Pain Level',       0.025),
-            ('acuity_val',                'ESI Acuity',       -0.08),
-            ('Chemistry-Blood_Abnormal',  'Chem Labs — Abnormal', 0.12),
-            ('Hematology-Blood_Abnormal', 'Heme Labs — Abnormal', 0.10),
-            ('ecg_status_Acute',          'ECG — Acute',      0.18),
-            ('rad_status_Acute',          'Radiology — Acute',0.15),
-            ('BLOOD CULTURE_Pending',     'Blood Culture Pending', 0.09),
-            ('Antibiotic',                'Antibiotic Given', 0.07),
-            ('IV Fluid',                  'IV Fluid Given',   0.04),
-        ]
+                seq = stay_sf3[state_cols].values.astype(np.float32)  # (T, F)
+                T, F = seq.shape
 
-        # Pull acuity from patient row, not step features
-        acuity_for_wf = float(row['acuity']) if pd.notna(row['acuity']) else 3.0
+                # Pad or truncate to PAD_LEN
+                if T >= _PAD_LEN:
+                    padded = seq[:_PAD_LEN]
+                else:
+                    pad = np.zeros((_PAD_LEN - T, F), dtype=np.float32)
+                    padded = np.concatenate([seq, pad], axis=0)
 
-        labels, measures, values, texts = [], [], [], []
-        running = 0.0
-        baseline = max(0.05, float(sf3['p_icu']) * 0.15)
+                x_tensor = torch.tensor(padded).unsqueeze(0)  # (1, PAD_LEN, F)
 
-        for col, label, weight in WATERFALL_FEATURES:
-            if col == 'acuity_val':
-                raw = acuity_for_wf
-            else:
-                raw = float(sf3[col]) if col in sf3.index else 0.0
-            contrib = raw * weight
-            running += contrib
-            labels.append(label)
-            measures.append('relative')
-            values.append(round(contrib, 4))
-            sign = '+' if contrib >= 0 else ''
-            texts.append(f"{sign}{contrib:.3f}")
+                shap_vals = explainer.shap_values(x_tensor)
+                # shap_vals: list of 2 arrays each (1, PAD_LEN, F), or single array (1, PAD_LEN, F, 2)
+                sv_arr = np.array(shap_vals)
+                if sv_arr.ndim == 4 and sv_arr.shape[0] == 2:
+                    # list-of-classes format: sv_arr[class, sample, T, F]
+                    sv = sv_arr[1, 0]  # ICU class, first sample -> (PAD_LEN, F)
+                else:
+                    # single array format: (sample, T, F, class)
+                    sv = sv_arr[0, :, :, 1]  # (PAD_LEN, F)
+                feature_shap = sv.sum(axis=0)
 
-        # Clamp total to actual p_icu
-        total = float(sf3['p_icu'])
-        labels  = ['Baseline'] + labels  + ['P(ICU)']
-        measures = ['absolute'] + measures + ['total']
-        values   = [round(baseline, 4)] + values + [round(total, 4)]
-        texts    = [f"{baseline:.3f}"] + texts + [f"{total:.2%}"]
+            top_idx   = np.argsort(np.abs(feature_shap))[::-1][:20]
+            top_vals  = feature_shap[top_idx]
+            top_names = [state_cols[i] for i in top_idx]
 
-        colors = []
-        for i, (m, v) in enumerate(zip(measures, values)):
-            if m in ('absolute', 'total'):
-                colors.append('#2c7bb6')
-            elif v >= 0:
-                colors.append('#d73027')
-            else:
-                colors.append('#1a9850')
+            # Sort largest positive at top for cleaner waterfall
+            order     = np.argsort(top_vals)[::-1]
+            top_vals  = top_vals[order]
+            top_names = [top_names[i] for i in order]
 
-        fig_wf = go.Figure(go.Waterfall(
-            orientation='v',
-            measure=measures,
-            x=labels,
-            y=values,
-            text=texts,
-            textposition='outside',
-            connector=dict(line=dict(color='#ccc', width=1)),
-            increasing=dict(marker=dict(color='#d73027')),
-            decreasing=dict(marker=dict(color='#1a9850')),
-            totals=dict(marker=dict(color='#2c7bb6')),
-        ))
-        fig_wf.update_layout(
-            title=dict(
-                text="Illustrative Feature Contributions to P(ICU Transfer)",
-                font=dict(size=14),
-            ),
-            yaxis_title="Contribution to P(ICU)",
-            yaxis=dict(tickformat='.3f'),
-            xaxis_tickangle=-35,
-            margin=dict(l=20, r=20, t=50, b=80),
-            height=450,
-            showlegend=False,
-        )
-        st.plotly_chart(fig_wf, width='stretch')
-        st.caption("Bar color: 🔴 increases risk of ICU transfer · 🟢 decreases risk · 🔵 baseline / total")
+            # Predicted ICU prob for this patient
+            wrapper.eval()
+            with torch.no_grad():
+                pred_prob = torch.softmax(wrapper(x_tensor), dim=-1)[0, 1].item()
+            wrapper.train()
+
+            labels   = ['Baseline'] + top_names + ['P(ICU)']
+            measures = ['absolute'] + ['relative'] * len(top_vals) + ['total']
+            values   = [round(base_prob, 4)] + [round(v, 4) for v in top_vals] + [round(pred_prob, 4)]
+            texts    = [f"{base_prob:.3f}"] + [
+                f"{'+' if v >= 0 else ''}{v:.3f}" for v in top_vals
+            ] + [f"{pred_prob:.2%}"]
+
+            fig_wf = go.Figure(go.Waterfall(
+                orientation='v',
+                measure=measures,
+                x=labels,
+                y=values,
+                text=texts,
+                textposition='outside',
+                connector=dict(line=dict(color='#ccc', width=1)),
+                increasing=dict(marker=dict(color='#d73027')),
+                decreasing=dict(marker=dict(color='#1a9850')),
+                totals=dict(marker=dict(color='#2c7bb6')),
+            ))
+            fig_wf.update_layout(
+                title=dict(
+                    text="Top 20 Feature Contributions to P(ICU Transfer)",
+                    font=dict(size=14),
+                ),
+                yaxis_title="SHAP Contribution",
+                yaxis=dict(tickformat='.3f'),
+                xaxis_tickangle=-35,
+                margin=dict(l=20, r=20, t=50, b=80),
+                height=500,
+                showlegend=False,
+            )
+            st.plotly_chart(fig_wf, width='stretch')
+            st.caption("Bar color: 🔴 increases risk of ICU transfer · 🟢 decreases risk · 🔵 baseline / total")
