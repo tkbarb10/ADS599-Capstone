@@ -178,6 +178,16 @@ def load_and_prep(hf_cfg: dict, use_tfidf: bool = False) -> pd.DataFrame:
         logger.info('Keeping raw chiefcomplaint for TF-IDF encoding after split')
 
     # ------------------------------------------------------------------
+    # Drop non-feature columns (action flags + location flags)
+    # These are excluded from agg_dict via `known`, but drop explicitly
+    # as a safeguard in case of naming changes or data updates.
+    # ------------------------------------------------------------------
+    drop_non_features = [c for c in (groups.action_flags + groups.location_flags) if c in df_stay.columns]
+    if drop_non_features:
+        df_stay.drop(columns=drop_non_features, inplace=True)
+        logger.info(f'Dropped non-feature columns: {drop_non_features}')
+
+    # ------------------------------------------------------------------
     # Encode target
     # ------------------------------------------------------------------
     df_stay['label'] = df_stay[target_col].map(TERMINAL_MAP)

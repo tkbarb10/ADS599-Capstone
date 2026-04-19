@@ -24,11 +24,11 @@ All models draw from the same MIMIC-IV ED cohort: adult ED visits with a termina
 
 | Model | Feature Cols | Chief Complaint Encoding |
 |---|---|---|
-| Logistic Regression | 242 | OHE -- 21 clinical categories |
-| Random Forest | 242 | OHE -- 21 clinical categories |
-| XGBoost | 271 | TF-IDF -- top 50 unigrams/bigrams (replaces OHE cc_ columns) |
+| Logistic Regression | 237 | OHE -- 21 clinical categories |
+| Random Forest | 237 | OHE -- 21 clinical categories |
+| XGBoost | 266 | TF-IDF -- top 50 unigrams/bigrams (replaces OHE cc_ columns) |
 
-The 224 shared features include: current vitals (6), derived MAP, lab state OHE (57), microbiology OHE (84), dispensed medication flags (21), medrecon flags (19), ECG/radiology OHE (6), action flags (5), static patient features (anchor_age, acuity, gender, height, weight, arrival transport OHE), and missingness indicators. XGBoost drops the 21 OHE chief complaint columns and substitutes 50 TF-IDF terms, netting 271 total.
+The shared features include: current vitals (6), derived MAP, lab state OHE (57), microbiology OHE (84), dispensed medication flags (21), medrecon flags (19), ECG/radiology OHE (6), static patient features (anchor_age, acuity, gender, height, weight, arrival transport OHE), and missingness indicators. Action flags (`vitals_checked`, `labs_ordered`, `micro_ordered`, `in_ed`, `in_ward`) are explicitly excluded -- these are operational tracking columns, not clinical state features. XGBoost drops the 21 OHE chief complaint columns and substitutes 50 TF-IDF terms, netting 266 total.
 
 ---
 
@@ -71,15 +71,16 @@ Metrics are computed on the test split for the positive class (ICU transfer, lab
 | Model | Accuracy | Precision | Recall | F1 (ICU) | ROC-AUC | PR-AUC | Brier Score |
 |---|---|---|---|---|---|---|---|
 | LSTM | 0.9884 | 0.8994 | 0.9560 | 0.9268 | 0.9942 | 0.9770 | 0.0113 |
-| XGBoost | 0.8405 | 0.3037 | 0.7962 | 0.4397 | 0.9056 | 0.6067 | 0.1125 |
-| Random Forest | 0.9048 | 0.4282 | 0.6283 | 0.5093 | 0.8949 | 0.5416 | 0.0901 |
-| Logistic Regression | 0.8155 | 0.2696 | 0.7881 | 0.4017 | 0.8907 | 0.5253 | 0.1318 |
+| XGBoost | 0.8395 | 0.3023 | 0.7965 | 0.4383 | 0.9057 | 0.6064 | 0.1127 |
+| Random Forest | 0.9045 | 0.4267 | 0.6263 | 0.5076 | 0.8943 | 0.5373 | 0.0901 |
+| Logistic Regression | 0.8148 | 0.2685 | 0.7865 | 0.4003 | 0.8906 | 0.5222 | 0.1322 |
 
 **Notes:**
 - Precision, Recall, and F1 are for the ICU transfer class (positive class). Accuracy is influenced heavily by the ~92% discharge majority.
 - PR-AUC is the primary ranking metric given class imbalance. LSTM (0.977) is dramatically stronger than all traditional ML models (0.52-0.61).
 - LSTM Brier Score (0.011) indicates well-calibrated probabilities. Traditional ML models have much higher Brier Scores (0.09-0.13).
-- XGBoost achieves the highest ROC-AUC (0.9056) among traditional ML, but its PR-AUC (0.607) still trails LSTM by a wide margin.
+- XGBoost achieves the highest ROC-AUC (0.9057) among traditional ML, but its PR-AUC (0.606) still trails LSTM by a wide margin.
+- Metrics reflect models re-trained on 237 clean features after removing 5 spurious operational columns (`vitals_checked`, `labs_ordered`, `micro_ordered`, `in_ed`, `in_ward`) that were present in the original training data.
 
 ---
 
@@ -162,13 +163,13 @@ Tuning was performed using `HalvingGridSearchCV` (scikit-learn) with macro F1 as
 
 | Model | Baseline F1 (ICU) | Tuned F1 (ICU) | Baseline PR-AUC | Tuned PR-AUC |
 |---|---|---|---|---|
-| Logistic Regression | **0.4017** | 0.4007 | **0.5253** | 0.5214 |
-| Random Forest | 0.5093 | **0.5241** | 0.5416 | **0.5569** |
-| XGBoost | 0.4397 | **0.4733** | **0.6067** | 0.6017 |
+| Logistic Regression | **0.4003** | 0.4007 | **0.5222** | 0.5214 |
+| Random Forest | 0.5076 | **0.5241** | 0.5373 | **0.5569** |
+| XGBoost | 0.4383 | **0.4733** | **0.6064** | 0.6017 |
 
 **Notes:**
-- Random Forest and XGBoost both improved with tuning; Random Forest gained the most (+0.015 F1, +0.015 PR-AUC).
-- Logistic Regression performed marginally worse after tuning (F1: -0.001, PR-AUC: -0.004). The original baseline logistic regression hyperparameters (`C=1.0`, `solver=saga`, `max_iter=300`, `tol=0.001`) are retained as the preferred configuration.
+- Random Forest and XGBoost both improved with tuning; Random Forest gained the most (+0.016 F1, +0.020 PR-AUC).
+- Logistic Regression is essentially unchanged after tuning (F1: +0.0004, PR-AUC: -0.001). The original baseline logistic regression hyperparameters (`C=1.0`, `solver=saga`, `max_iter=300`, `tol=0.001`) are retained as the preferred configuration.
 - Tuned Random Forest achieves the best Brier Score among traditional ML models (0.0734), indicating better-calibrated probabilities relative to baseline.
 - None of the tuned traditional ML models approach LSTM performance (PR-AUC 0.977), which is expected given the aggregation to a single row per stay discards temporal information.
 
