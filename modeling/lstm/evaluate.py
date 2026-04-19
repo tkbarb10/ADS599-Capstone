@@ -82,6 +82,19 @@ def _latest(directory: Path, pattern: str) -> Path:
     return matches[-1]
 
 
+def _prior_correct(p: np.ndarray, prior_test: float, prior_train: float = 0.5) -> np.ndarray:
+    """Correct predicted probabilities from balanced training prior to true test prior.
+
+    LSTM uses CrossEntropyLoss(weight=[1.0, n_dis/n_icu]), making the effective
+    training prior 0.5. This Bayes odds correction maps probabilities back to the
+    natural ICU prevalence space for calibration and distribution plots.
+    """
+    odds = p / np.clip(1.0 - p, 1e-10, None)
+    correction = (prior_test / (1.0 - prior_test)) / (prior_train / (1.0 - prior_train))
+    odds_corr = odds * correction
+    return odds_corr / (1.0 + odds_corr)
+
+
 def _load_lstm_predictions() -> pd.DataFrame:
     artifact_dir = PROJECT_ROOT / config_lstm['artifacts']['dir']
     path = _latest(artifact_dir, 'test_predictions_*.parquet')
@@ -241,16 +254,25 @@ def plot_calibration_curve(model_results: dict, eval_dir: Path, timestamp: str) 
     fig, ax = plt.subplots(figsize=(7, 6))
 
     for model_name, (y_true, _, y_prob) in model_results.items():
-        frac_pos, mean_pred = calibration_curve(y_true, y_prob, n_bins=10)
+        prior_test = float(y_true.mean())
+        p_corr = _prior_correct(y_prob.values if hasattr(y_prob, 'values') else y_prob, prior_test)
+
+        # raw (dashed)
+        frac_pos_raw, mean_pred_raw = calibration_curve(y_true, y_prob, n_bins=10)
+        ax.plot(mean_pred_raw, frac_pos_raw, '--', lw=1.5, alpha=0.45,
+                color=MODEL_COLORS[model_name])
+
+        # prior-corrected (solid)
+        frac_pos, mean_pred = calibration_curve(y_true, p_corr, n_bins=10)
         ax.plot(mean_pred, frac_pos, 's-', lw=2, color=MODEL_COLORS[model_name],
                 label=MODEL_LABELS[model_name])
 
     ax.plot([0, 1], [0, 1], 'k--', lw=1, label='Perfect Calibration')
     ax.set_xlim(0.0, 1.0)
     ax.set_ylim(0.0, 1.0)
-    ax.set_xlabel('Mean Predicted Probability')
+    ax.set_xlabel('Mean Prior-Corrected Predicted Probability')
     ax.set_ylabel('Fraction of Positives (Observed Rate)')
-    ax.set_title('Calibration Curve')
+    ax.set_title('Calibration Curve\n(solid = prior-corrected, dashed = raw)')
     ax.legend(loc='upper left')
     ax.grid(True, alpha=0.25)
 
@@ -268,17 +290,24 @@ def plot_prob_distribution(model_results: dict, eval_dir: Path, timestamp: str) 
 
     class_colors = {0: '#4477AA', 1: '#EE6677'}
     for ax, (model_name, (y_true, _, y_prob)) in zip(axes, model_results.items()):
+        prior_test = float(y_true.mean())
+        p_arr = y_prob.values if hasattr(y_prob, 'values') else np.asarray(y_prob)
+        p_corr = _prior_correct(p_arr, prior_test)
+
         for label_val, label_name in [(0, 'Discharge'), (1, 'ICU')]:
-            mask = y_true == label_val
-            ax.hist(y_prob[mask], bins=30, alpha=0.6, color=class_colors[label_val],
+            mask = (y_true == label_val).values if hasattr(y_true, 'values') else y_true == label_val
+            ax.hist(p_corr[mask], bins=30, alpha=0.6, color=class_colors[label_val],
                     label=label_name, density=True, edgecolor='white', linewidth=0.5)
-        ax.set_xlabel('Predicted Probability (ICU Transfer)')
+
+        ax.axvline(prior_test, color='black', linestyle='--', lw=1.2,
+                   label=f'ICU Prevalence ({prior_test:.1%})')
+        ax.set_xlabel('Prior-Corrected Predicted Probability (ICU Transfer)')
         ax.set_ylabel('Density')
         ax.set_title(MODEL_LABELS[model_name])
-        ax.legend()
+        ax.legend(fontsize=9)
         ax.grid(True, alpha=0.25)
 
-    fig.suptitle('Predicted Probability Distribution by True Class',
+    fig.suptitle('Prior-Corrected Predicted Probability Distribution by True Class',
                  fontsize=13, fontweight='bold', y=1.02)
     out = eval_dir / f'prob_distribution_{timestamp}.png'
     fig.savefig(out)

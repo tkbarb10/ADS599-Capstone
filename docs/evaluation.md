@@ -189,6 +189,50 @@ Best eval loss: 0.0700 at epoch 2. The model ran all 5 configured epochs; early 
 
 ---
 
+## LSTM Performance by Sequence Length and Length of Stay
+
+Metrics computed on the test set (39,520 stays), segmented by number of events per stay (`n_actions`) and total length of stay in days (`total_length`). F1 values are per-class binary F1. ICU F1 degrades in bins with very low ICU rates -- small sample size amplifies the effect of individual misclassifications.
+
+### By Sequence Length (Number of Events)
+
+| Bucket | n | ICU n | ICU Rate | F1 Discharge | F1 ICU | F1 Macro |
+|---|---|---|---|---|---|---|
+| 1 | 782 | 2 | 0.3% | 0.9987 | 0.0000 | 0.4994 |
+| 3-4 | 5,588 | 17 | 0.3% | 0.9993 | 0.7143 | 0.8568 |
+| 5-7 | 4,794 | 87 | 1.8% | 0.9970 | 0.8495 | 0.9232 |
+| 8-11 | 7,039 | 394 | 5.6% | 0.9938 | 0.9026 | 0.9482 |
+| 12-17 | 7,336 | 933 | 12.7% | 0.9916 | 0.9449 | 0.9683 |
+| 18-29 | 7,194 | 1,020 | 14.2% | 0.9910 | 0.9477 | 0.9694 |
+| 30-49 | 4,840 | 445 | 9.2% | 0.9920 | 0.9227 | 0.9574 |
+| 50+ | 1,947 | 149 | 7.7% | 0.9854 | 0.8073 | 0.8963 |
+
+**Notes:**
+- The 1-event bin has only 2 ICU patients -- ICU F1 of 0.0 reflects a sample too small to evaluate meaningfully.
+- ICU F1 stabilizes around 0.93-0.95 in the 8-29 event range where ICU rates are highest and the model has sufficient sequence context.
+- The 50+ bin shows modest degradation, consistent with longer sequences having more complex and non-linear trajectories.
+
+### By Length of Stay (Days)
+
+| Bucket | n | ICU n | ICU Rate | F1 Discharge | F1 ICU | F1 Macro |
+|---|---|---|---|---|---|---|
+| 0d | 24,370 | 128 | 0.5% | 0.9978 | 0.6036 | 0.8007 |
+| 1d | 3,503 | 164 | 4.7% | 0.9881 | 0.7980 | 0.8930 |
+| 2d | 2,591 | 234 | 9.0% | 0.9908 | 0.9142 | 0.9525 |
+| 3-4d | 3,834 | 581 | 15.2% | 0.9889 | 0.9405 | 0.9647 |
+| 5-6d | 2,074 | 500 | 24.1% | 0.9879 | 0.9622 | 0.9750 |
+| 7-9d | 1,570 | 519 | 33.1% | 0.9774 | 0.9556 | 0.9665 |
+| 10-13d | 816 | 363 | 44.5% | 0.9593 | 0.9519 | 0.9556 |
+| 14-20d | 461 | 290 | 62.9% | 0.9452 | 0.9670 | 0.9561 |
+| 21+d | 301 | 268 | 89.0% | 0.7848 | 0.9675 | 0.8762 |
+
+**Notes:**
+- The 0d bin (same-day stays, 62% of test stays) has only 0.5% ICU rate -- ICU F1 of 0.60 is driven by the tiny sample, not model failure.
+- ICU F1 rises steadily as LOS increases and ICU rate climbs, peaking at 0.97 for 14-20d and 21+d stays.
+- A class balance inversion occurs around 14d: ICU patients become the majority, discharge F1 drops while ICU F1 dominates. The model is effectively solving a different problem in the longest-stay bins.
+- `total_length` is stored in integer days; sub-day granularity is not available from this feature.
+
+---
+
 ## Raw Metrics: RL Agent
 
 ### Training Loss (3 epochs)

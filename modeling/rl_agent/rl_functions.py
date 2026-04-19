@@ -23,19 +23,19 @@ def reward_function(
     """Confidence-weighted correctness reward + event-based time penalty.
 
     At terminal rows: reward scaled by LSTM ICU confidence (p_icu).
-      - Correct discharge:          +base_reward * p_icu
-      - Correct ICU transfer:       +base_reward * class_ratio * p_icu  (minority bonus)
-      - Wrong discharge (missed):   -base_reward * class_ratio * p_icu  (heaviest penalty)
-      - Wrong ICU transfer:         -base_reward * p_icu
+      - Correct discharge: +base_reward * p_icu
+      - Correct ICU transfer: +base_reward * class_ratio * p_icu  (minority bonus)
+      - Wrong discharge (missed): -base_reward * class_ratio * p_icu  (heaviest penalty)
+      - Wrong ICU transfer: -base_reward * p_icu
 
     All rows: event_idx * time_weight (encourages earlier decisions).
 
     Args:
-        action:      Provider's action (0=discharge, 1=transfer_icu).
-        terminal:    [label, terminal_code] -- label is true disposition (0/1),
+        action: Provider's action (0=discharge, 1=transfer_icu, 2=wait).
+        terminal: [label, terminal_code] -- label is true disposition (0/1),
                      terminal_code is is_terminal flag (0/1).
-        event_idx:   Within-stay event counter.
-        p_icu:       LSTM step-by-step ICU transfer probability.
+        event_idx: Within-stay event counter.
+        p_icu: LSTM step-by-step ICU transfer probability.
         class_ratio: Multiplier applied to ICU-class rewards/penalties.
         time_weight: Per-event time penalty (negative).
         base_reward: Base reward magnitude.
