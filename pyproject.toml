@@ -1,7 +1,12 @@
 [project]
 name = "ads599-capstone"
 version = "0.1.0"
-description = "Add your description here"
+description = "ED clinical decision support: ICU transfer prediction using LSTM and offline RL on MIMIC-IV"
+authors = [
+    { name = "Taylor Kirk", email = "tkirk@sandiego.edu" },
+    { name = "April Chia", email = "achia@sandiego.edu" },
+    { name = "Tommy Barron", email = "tbarron@sandiego.edu" },
+]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
