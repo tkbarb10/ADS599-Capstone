@@ -13,6 +13,8 @@ old_files/
 data_understanding.md
 .vscode/
 logs/*
+docs/lit_review.md
+docs/project_plan.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

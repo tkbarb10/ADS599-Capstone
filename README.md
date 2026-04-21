@@ -37,11 +37,18 @@ Processed datasets used for modeling are hosted on HuggingFace (private) and loa
 
 ## Project Structure
 
+See detailed READMEs for each major directory:
+- [sql_scripts/README.md](sql_scripts/README.md) -- BigQuery SQL queries, what each extracts, run order
+- [data_pipelines/README.md](data_pipelines/README.md) -- pipeline scripts, combine_patient_state, logs, HuggingFace outputs
+- [modeling/README.md](modeling/README.md) -- all model training/tuning/evaluation scripts, artifact locations, log paths
+
 ```
 ADS599-Capstone/
 ├── project_setup/
 │   ├── cohort_base.py             -- builds base cohort in BigQuery; run first
 │   └── settings.yaml              -- HuggingFace repo targets, split/config names, logging paths
+│
+├── sql_scripts/                   -- BigQuery SQL queries (loaded by pipeline scripts)
 │
 ├── data_pipelines/
 │   ├── pipeline_scripts/          -- BigQuery extract -> clean -> feature engineer -> HF push
@@ -64,11 +71,11 @@ ADS599-Capstone/
 │
 ├── modeling/
 │   ├── data_prep/                 -- shared data loading, splitting, scaling for all models
-│   │   ├── traditional_ml.py      -- first-hour aggregation, CC encoding, train/test/val split
-│   │   └── lstm.py                -- full sequence loading, padding, DataLoader construction
 │   ├── traditional_ml/            -- logistic regression, random forest, XGBoost training and tuning
 │   ├── lstm/                      -- LSTM model definition, training, step-by-step inference, SHAP
-│   └── rl_agent/                  -- CQL agent, environment, training, evaluation
+│   ├── rl_agent/                  -- CQL agent, environment, training, evaluation
+│   ├── config/                    -- YAML configs for each model family
+│   └── artifacts/                 -- saved models, predictions, eval outputs (gitignored)
 │
 ├── docs/
 │   ├── evaluation.md              -- all model results and metrics
