@@ -36,7 +36,7 @@ if __name__ == "__main__":
     rows_remaining = df_labs.shape[0] - results_after_transfer
 
     # Remove items where lab results came back after the patient had been transferred
-    mask = df_labs[df_labs['result_after_icu_transfer'] == False].index
+    mask = df_labs[not df_labs['result_after_icu_transfer']].index
     df_labs = df_labs.loc[mask, :]
 
     logger.info(f"After removal, remaining rows should equal {rows_remaining}.  Rows Remaining: {df_labs.shape[0]}")

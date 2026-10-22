@@ -3,7 +3,6 @@ data_pipelines/combine_patient_state/_checkpoint.parquet
 modeling/artifacts/
 !modeling/artifacts/lstm
 notes.md
-test.ipynb
 .claude/
 data/
 project_data.db
@@ -15,6 +14,7 @@ data_understanding.md
 logs/*
 docs/lit_review.md
 docs/project_plan.md
+eda/medrecon.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

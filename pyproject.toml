@@ -29,6 +29,7 @@ dependencies = [
     "streamlit-aggrid>=1.2.1.post2",
     "xgboost>=3.2.0",
     "shap>=0.51.0",
+    "scipy>=1.17.1",
 ]
 
 [tool.setuptools.packages.find]
